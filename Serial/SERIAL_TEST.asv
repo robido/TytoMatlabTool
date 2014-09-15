@@ -1,12 +1,15 @@
 %% CONNECT
-[PORT, tmr] = serial_setup_open('COM3',115200);
-if(PORT~=0)
+[serPORT,serTimer] = serial_setup_open('COM29',115200);
+if(serPORT~=0)
    disp('CONNECTED'); 
 end
 
-%% SHOULD BE RUNNING IN INTERRUPT MODE
-
-protocol_send_command(PORT,101); %Trigger the motion
-
+STATE = [];
+while(1)
+    pause(0.001);
+    
+    
+    STATE = CORE_LOOP(serPort,STATE);
+end
 %% CLOSE
-serial_close(PORT);
+serial_close(serPORT,serTimer);

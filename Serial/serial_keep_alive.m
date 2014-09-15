@@ -1,7 +1,9 @@
-function [ output_args ] = serial_keep_alive( input_args )
-%SERIAL_KEEP_ALIVE Summary of this function goes here
-%   Detailed explanation goes here
+function serial_keep_alive(~,~,PORT)
+global SERIAL_SENT
 
-
+if(SERIAL_SENT<5)
+    protocol_send_command(PORT,101); %Trigger a new message to restart transmission
+    disp('TRIGGER');
+    SERIAL_SENT = 0;
 end
 

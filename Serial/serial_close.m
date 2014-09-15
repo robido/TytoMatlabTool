@@ -1,6 +1,8 @@
-function serial_close(PORT)
+function serial_close(PORT,serTimer)
 %SERIAL_CLOSE Summary of this function goes here
 %   Detailed explanation goes here
+stop(serTimer);
+
 try
     fclose(PORT);
 catch
@@ -8,5 +10,6 @@ catch
     fclose(PORT);
 end
 disp('COM PORT CLOSED');
+
 end
 

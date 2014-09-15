@@ -1,8 +1,4 @@
 function varargout = serial_GUI_noICT(varargin)
-%  	Author: Roger Yeh
-%   Copyright 2010 MathWorks, Inc.
-%   Version: 1.0  |  Date: 2010.01.13
-
 % SERIAL_GUI_NOICT M-file for serial_GUI_noICT.fig
 %      SERIAL_GUI_NOICT, by itself, creates a new SERIAL_GUI_NOICT or raises the existing
 %      singleton*.
@@ -47,6 +43,10 @@ else
 end
 % End initialization code - DO NOT EDIT
 
+function GUI_update_timer(~,~,handles)
+debug = protocol_get_debug(1);
+set(handles.txt_test,'String',num2str(debug));
+drawnow
 
 % --- Executes just before serial_GUI_noICT is made visible.
 function serial_GUI_noICT_OpeningFcn(hObject, eventdata, handles, varargin)
@@ -57,7 +57,11 @@ comPORTS = get_serial_ports();
 % serialPorts = instrhwinfo('serial');
 % nPorts = length(serialPorts.SerialPorts);
 set(handles.portList, 'String', comPORTS);
-set(handles.portList, 'Value', 2);   
+set(handles.portList, 'Value', 1);   
+
+GUItimer = timer('TimerFcn',{@GUI_update_timer,handles},'StartDelay',0.5,'Period',0.001,'ExecutionMode','fixedSpacing');
+handles.GUItimer = GUItimer;
+start(GUItimer);
 
 handles.output = hObject;
 
@@ -153,15 +157,15 @@ if strcmp(get(hObject,'String'),'Connect') % currently disconnected
     serPort = serList{serPortn};
     
     %Activate the serial connection
-    serConn = serial_setup_open(serPort, str2num(get(handles.baudRateText, 'String')));
+    [serConn,serTimer] = serial_setup_open(serPort, str2num(get(handles.baudRateText, 'String')));
     if(serConn ~= 0)
         handles.serConn = serConn;
+        handles.serTimer = serTimer;
         set(hObject, 'String','Disconnect')
     end
 else  
     set(hObject, 'String','Connect')
-    stop(handles.Tmr);
-    serial_close(handles.serConn);
+    serial_close(handles.serConn,handles.serTimer);
 end
 guidata(hObject, handles);
 
@@ -170,12 +174,13 @@ function figure1_CloseRequestFcn(hObject, eventdata, handles)
 % hObject    handle to figure1 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-stop(handles.Tmr);
 if isfield(handles, 'serConn')
-    serial_close(handles.serConn);
+    serial_close(handles.serConn,handles.serTimer);
 end
 % Hint: delete(hObject) closes the figure
 delete(hObject);
+
+stop(handles.GUItimer);
 
 % --- Executes during object creation, after setting all properties.
 function figure1_CreateFcn(hObject, eventdata, handles)

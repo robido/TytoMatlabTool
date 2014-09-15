@@ -1,5 +1,0 @@
-function serial_ISR_delay( hObject, event, serConn )
-
-protocol_send_command(serConn,ACK_RECEIVED);
-end
-
