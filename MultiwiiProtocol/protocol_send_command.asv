@@ -1,0 +1,5 @@
+function [ output_args ] = protocol_send_command( input_args )
+% Sends the next command in line
+serial_send_bytes(PORT,protocol_get_next_command()); %Keep alive
+end
+

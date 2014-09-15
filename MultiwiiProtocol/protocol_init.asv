@@ -1,0 +1,14 @@
+function protocol_init()
+%PROTOCOL_INIT
+
+GLOBAL PROTO_STATE
+P = PROTO_STATE;
+
+%Populate default values
+P.M.MSP_STATUS.RENEW = 1;
+P.M.MSP_STATUS.cycleTime = 0;
+P.M.MSP_STATUS.cycleTime = 0;
+
+PROTO_STATE = P;
+end
+

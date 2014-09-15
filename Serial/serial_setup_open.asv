@@ -1,0 +1,20 @@
+function [serConn,serTimer] = serial_setup_open( serPort, Baud )
+
+serConn = serial(serPort, 'TimeOut', 1, 'BaudRate', Baud);
+    
+    serConn.BytesAvailableFcnCount = 1;
+    serConn.BytesAvailableFcnMode = 'byte';
+    serConn.BytesAvailableFcn={@serial_ISR_RX,serConn,serTimer};
+    %serConn.OutputEmptyFcn={@serial_ISR_TX,serConn};
+    
+    try
+    fopen(serConn);
+    disp('COM PORT OPENED');
+    serTimer = timer('TimerFcn',{@serial_ISR_delay,serConn},'StartDelay',0.05,'ExecutionMode','singleShot');
+    catch e
+        errordlg(e.message);
+        serConn = 0;
+        serTimer = 0;
+    end
+end
+
