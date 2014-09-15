@@ -43,10 +43,46 @@ else
 end
 % End initialization code - DO NOT EDIT
 
-function GUI_update_timer(~,~,handles)
-debug = protocol_get_debug(1);
-set(handles.txt_test,'String',num2str(debug));
-drawnow
+function GUI_update_timer(~,~,hObject)
+persistent STATE last_cycle
+if(isempty(last_cycle))
+    last_cycle = now;
+end
+
+%Get handles structure
+try
+    handles = guidata(hObject.figure1);
+catch
+    handles = guidata(hObject);
+end
+
+%Update the state using serial comm and protocol functions
+[STATE, CYCLE] = CORE_LOOP(handles.serConn,STATE);
+    
+if(CYCLE) %Only update after a full cycle
+    %Get serial refresh rate
+    current_time = now;
+    serialTime = last_cycle-current_time;
+    last_cycle = current_time;
+    serial_delay = 24*3600*serialTime;
+    serial_Hz = round(1/serial_delay);
+    
+    %Get results
+    cycleTime = protocol_get_cycleTime(STATE);
+    debug = protocol_get_debug(STATE); 
+    
+    %Display on graph
+    OSCILLOSCOPE_update([cycleTime debug(1)]);
+    
+    %Display on GUI
+    DISP_string = [];
+    DISP_string = [DISP_string,'serialRate (Hz):',32,num2str(serial_Hz),10,13];
+    DISP_string = [DISP_string,'cycleTime (us):',32,num2str(cycleTime),10,13];
+    DISP_string = [DISP_string,'cycleTime (Hz):',32,num2str(round(1000000/cycleTime)),10,13];
+    DISP_string = [DISP_string,'debug:',32,num2str(debug),10,13];
+    set(handles.txt_test,'String',DISP_string);
+    drawnow
+end
 
 % --- Executes just before serial_GUI_noICT is made visible.
 function serial_GUI_noICT_OpeningFcn(hObject, eventdata, handles, varargin)
@@ -59,11 +95,12 @@ comPORTS = get_serial_ports();
 set(handles.portList, 'String', comPORTS);
 set(handles.portList, 'Value', 1);   
 
-GUItimer = timer('TimerFcn',{@GUI_update_timer,handles},'StartDelay',0.5,'Period',0.001,'ExecutionMode','fixedSpacing');
+GUItimer = timer('TimerFcn',{@GUI_update_timer,hObject},'StartDelay',0.5,'Period',0.001,'ExecutionMode','fixedRate');
 handles.GUItimer = GUItimer;
-start(GUItimer);
 
 handles.output = hObject;
+
+OSCILLOSCOPE_init
 
 % Update handles structure
 guidata(hObject, handles);
@@ -157,15 +194,17 @@ if strcmp(get(hObject,'String'),'Connect') % currently disconnected
     serPort = serList{serPortn};
     
     %Activate the serial connection
-    [serConn,serTimer] = serial_setup_open(serPort, str2num(get(handles.baudRateText, 'String')));
+    serConn = serial_setup_open(serPort, str2num(get(handles.baudRateText, 'String')));
     if(serConn ~= 0)
         handles.serConn = serConn;
-        handles.serTimer = serTimer;
+        guidata(hObject, handles);
+        start(handles.GUItimer);
         set(hObject, 'String','Disconnect')
     end
 else  
     set(hObject, 'String','Connect')
-    serial_close(handles.serConn,handles.serTimer);
+    stop(handles.GUItimer);
+    serial_close(handles.serConn);
 end
 guidata(hObject, handles);
 
@@ -175,12 +214,18 @@ function figure1_CloseRequestFcn(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 if isfield(handles, 'serConn')
-    serial_close(handles.serConn,handles.serTimer);
+    serial_close(handles.serConn);
 end
+
 % Hint: delete(hObject) closes the figure
 delete(hObject);
 
+try
 stop(handles.GUItimer);
+catch
+end
+
+OSCILLOSCOPE_close
 
 % --- Executes during object creation, after setting all properties.
 function figure1_CreateFcn(hObject, eventdata, handles)

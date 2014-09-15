@@ -1,9 +1,8 @@
-function [ debugval ] = protocol_get_debug(ID)
-global protocol_STATE
+function debug = protocol_get_debug(STATE)
+
 try
-    debug = protocol_STATE.M.MSP_STATUS.cycleTime;
-    debugval = debug(ID);
+    debug = cast(STATE.M.MSP_DEBUG.debug,'double');
 catch
-    debugval = 0;
+    debug = [0 0 0 0];
 end
 

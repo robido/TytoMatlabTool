@@ -1,5 +1,8 @@
-function [ cycleTime ] = protocol_get_cycleTime()
-global protocol_STATE
-cycleTime = protocol_STATE.M.MSP_STATUS.cycleTime;
+function cycleTime = protocol_get_cycleTime(STATE)
+try
+    cycleTime = cast(STATE.M.MSP_STATUS.cycleTime,'double');
+catch
+    cycleTime = 0;
+end
 end
 

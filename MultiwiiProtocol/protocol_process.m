@@ -1,4 +1,4 @@
-function ACK = protocol_process( byte )
+function [ACK,STATE] = protocol_process( byte,STATE )
 %PROTOCOL_PROCESS Parses the received data
 
 persistent inBuf checksum cmdMSP c_state offset dataSize
@@ -50,7 +50,7 @@ switch c_state
          offset = offset + 1;
      else
          if(checksum == byte) %Compare calculated and transferred checksum
-             protocol_update_state(cmdMSP, inBuf);
+             STATE = protocol_update_state(cmdMSP, inBuf, STATE);
              ACK = cmdMSP;
          end
          c_state = 0;

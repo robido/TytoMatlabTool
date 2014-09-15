@@ -1,15 +1,19 @@
 %% CONNECT
-[serPORT,serTimer] = serial_setup_open('COM29',115200);
+serPORT = serial_setup_open('COM29',115200);
 if(serPORT~=0)
    disp('CONNECTED'); 
 end
-
 STATE = [];
-while(1)
-    pause(0.001);
+
+%% WHAT THE GUI WOULD DO AT TIMER INTERVALS
+%Update the state using serial comm and protocol functions
+STATE = CORE_LOOP(serPORT,STATE);
     
-    
-    STATE = CORE_LOOP(serPort,STATE);
-end
+%Get results
+cycleTime = protocol_get_cycleTime(STATE);
+
+%Display
+clc; disp(cycleTime);
+
 %% CLOSE
-serial_close(serPORT,serTimer);
+serial_close(serPORT);
