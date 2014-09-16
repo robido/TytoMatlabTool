@@ -60,8 +60,14 @@ end
 [STATE, CYCLE] = CORE_LOOP(handles.serConn,STATE);
     
 if(CYCLE) %Only update after a full cycle
-    %Get results
+    %Get serial refresh rate
+    current_time = now;
+    serialTime = current_time-last_cycle;
+    last_cycle = current_time;
+    serial_delay = 24*3600*serialTime;
+    serial_Hz = round(1/serial_delay);
     
+    %Get results
     cycleTime = protocol_get_cycleTime(STATE);
     debug = protocol_get_debug(STATE); 
     
@@ -69,11 +75,12 @@ if(CYCLE) %Only update after a full cycle
     OSCILLOSCOPE_update([cycleTime debug(1)]);
     
     %Display on GUI
-    DISP_string = ['cycleTime (us):',32,num2str(cycleTime),10,13];
+    DISP_string = [];
+    DISP_string = [DISP_string,'serialRate (Hz):',32,num2str(serial_Hz),10,13];
+    DISP_string = [DISP_string,'cycleTime (us):',32,num2str(cycleTime),10,13];
     DISP_string = [DISP_string,'cycleTime (Hz):',32,num2str(round(1000000/cycleTime)),10,13];
     DISP_string = [DISP_string,'debug:',32,num2str(debug),10,13];
     set(handles.txt_test,'String',DISP_string);
-    drawnow
 end
 
 % --- Executes just before serial_GUI_noICT is made visible.
@@ -87,7 +94,7 @@ comPORTS = get_serial_ports();
 set(handles.portList, 'String', comPORTS);
 set(handles.portList, 'Value', 1);   
 
-GUItimer = timer('TimerFcn',{@GUI_update_timer,hObject},'StartDelay',0.5,'Period',0.001,'ExecutionMode','fixedRate');
+GUItimer = timer('TimerFcn',{@GUI_update_timer,hObject},'StartDelay',0.5,'Period',0.001,'ExecutionMode','fixedRate','BusyMode',');
 handles.GUItimer = GUItimer;
 
 handles.output = hObject;

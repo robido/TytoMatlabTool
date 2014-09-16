@@ -44,9 +44,10 @@ end
 % End initialization code - DO NOT EDIT
 
 function GUI_update_timer(~,~,hObject)
-persistent STATE last_cycle
+persistent STATE last_cycle refresh_delay
 if(isempty(last_cycle))
     last_cycle = now;
+    refresh_delay = 0;
 end
 
 %Get handles structure
@@ -62,7 +63,7 @@ end
 if(CYCLE) %Only update after a full cycle
     %Get serial refresh rate
     current_time = now;
-    serialTime = last_cycle-current_time;
+    serialTime = current_time-last_cycle;
     last_cycle = current_time;
     serial_delay = 24*3600*serialTime;
     serial_Hz = round(1/serial_delay);
@@ -74,14 +75,18 @@ if(CYCLE) %Only update after a full cycle
     %Display on graph
     OSCILLOSCOPE_update([cycleTime debug(1)]);
     
-    %Display on GUI
-    DISP_string = [];
-    DISP_string = [DISP_string,'serialRate (Hz):',32,num2str(serial_Hz),10,13];
-    DISP_string = [DISP_string,'cycleTime (us):',32,num2str(cycleTime),10,13];
-    DISP_string = [DISP_string,'cycleTime (Hz):',32,num2str(round(1000000/cycleTime)),10,13];
-    DISP_string = [DISP_string,'debug:',32,num2str(debug),10,13];
-    set(handles.txt_test,'String',DISP_string);
-    drawnow
+    refresh_delay = refresh_delay + 1;
+    if(refresh_delay>10)
+        %Display on GUI
+        DISP_string = [];
+        DISP_string = [DISP_string,'serialRate (Hz):',32,num2str(serial_Hz),10,13];
+        DISP_string = [DISP_string,'cycleTime (us):',32,num2str(cycleTime),10,13];
+        DISP_string = [DISP_string,'cycleTime (Hz):',32,num2str(round(1000000/cycleTime)),10,13];
+        DISP_string = [DISP_string,'debug:',32,num2str(debug),10,13];
+        set(handles.txt_test,'String',DISP_string);
+        refresh_delay = 0;
+        drawnow
+    end
 end
 
 % --- Executes just before serial_GUI_noICT is made visible.
@@ -95,7 +100,7 @@ comPORTS = get_serial_ports();
 set(handles.portList, 'String', comPORTS);
 set(handles.portList, 'Value', 1);   
 
-GUItimer = timer('TimerFcn',{@GUI_update_timer,hObject},'StartDelay',0.5,'Period',0.001,'ExecutionMode','fixedRate');
+GUItimer = timer('TimerFcn',{@GUI_update_timer,hObject},'StartDelay',0.5,'Period',0.001,'ExecutionMode','fixedRate','BusyMode','queue');
 handles.GUItimer = GUItimer;
 
 handles.output = hObject;
@@ -213,19 +218,19 @@ function figure1_CloseRequestFcn(hObject, eventdata, handles)
 % hObject    handle to figure1 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-if isfield(handles, 'serConn')
+if strcmp(get(handles.connectButton,'String'),'Disconnect')
+    msgbox('Please disconnect first.');
+else
+    %Stop what can be stopped
+    stop(handles.GUItimer);
     serial_close(handles.serConn);
+
+    OSCILLOSCOPE_close;
+    
+    % Hint: delete(hObject) closes the figure
+    delete(hObject);
 end
 
-% Hint: delete(hObject) closes the figure
-delete(hObject);
-
-try
-stop(handles.GUItimer);
-catch
-end
-
-OSCILLOSCOPE_close
 
 % --- Executes during object creation, after setting all properties.
 function figure1_CreateFcn(hObject, eventdata, handles)
