@@ -8,9 +8,7 @@ if(isempty(time_last))
 end
 
 %Get all received data until now
-send_next = 0;
 CYCLE = 0;
-ACKS = [];
 while(serConn.BytesAvailable()>0)
     byte = fread(serConn,1,'uchar');
     [ACK, STATE] = protocol_process(byte, STATE);
@@ -22,20 +20,26 @@ end
 %Check that a full report was received
 if(isequal([101 254], ACKS))
     CYCLE = 1;
+else
+    
 end
 
 seconds_since_last = 24*3600*(now-time_last);
-if(send_next == 1 || seconds_since_last>0.2) %Timeout value
-    if(send_next~=1)
-        disp('RX_TIMOUT');
-    else
-        
+if(CYCLE == 1 || seconds_since_last>0.2) %Timeout value
+    double_command = 0;
+    if(CYCLE~=1)
+        disp('RX_TIMOUT'); 
+        double_command = 1;
     end   
     bytes_to_send = [];
-    bytes_to_send = [bytes_to_send protocol_get_command(101)];
-    bytes_to_send = [bytes_to_send protocol_get_command(254)];
+    while(double_command >= 0)
+        bytes_to_send = [bytes_to_send protocol_get_command(101)];
+        bytes_to_send = [bytes_to_send protocol_get_command(254)];
+        double_command = double_command - 1;
+    end
     serial_send_bytes(serConn,bytes_to_send);
     time_last = now;
+    ACKS = [];
 end
 
 end
