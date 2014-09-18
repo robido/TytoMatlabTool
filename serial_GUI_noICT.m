@@ -78,8 +78,8 @@ if(CYCLE) %Only update after a full cycle
     refresh_delay = refresh_delay + 1;
     if(refresh_delay>10)
         %Display on GUI
+        set(handles.txt_serial_Hz,'String',num2str(serial_Hz));
         DISP_string = [];
-        DISP_string = [DISP_string,'serialRate (Hz):',32,num2str(serial_Hz),10,13];
         DISP_string = [DISP_string,'cycleTime (us):',32,num2str(cycleTime),10,13];
         DISP_string = [DISP_string,'cycleTime (Hz):',32,num2str(round(1000000/cycleTime)),10,13];
         DISP_string = [DISP_string,'debug:',32,num2str(debug),10,13];

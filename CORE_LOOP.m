@@ -7,9 +7,12 @@ if(isempty(time_last))
     ACKS = [];
 end
 
+%LIST_OF_COMMANDS = [101 254];
+LIST_OF_COMMANDS = [254];
+
 %Get all received data until now
 CYCLE = 0;
-while(serConn.BytesAvailable()>0 && ~isequal([101 254], ACKS))
+while(serConn.BytesAvailable()>0 && ~isequal(LIST_OF_COMMANDS, ACKS))
     byte = fread(serConn,1,'uchar');
     [ACK, STATE] = protocol_process(byte, STATE);
     if(ACK~=0)
@@ -18,7 +21,7 @@ while(serConn.BytesAvailable()>0 && ~isequal([101 254], ACKS))
 end
 
 %Check that a full report was received
-if(isequal([101 254], ACKS))
+if(isequal(LIST_OF_COMMANDS, ACKS))
     CYCLE = 1;
 end
 
@@ -31,8 +34,10 @@ if(CYCLE == 1 || seconds_since_last>0.2) %Timeout value
     end   
     bytes_to_send = [];
     while(multiple_command >= 0)
-        bytes_to_send = [bytes_to_send protocol_get_command(101)];
-        bytes_to_send = [bytes_to_send protocol_get_command(254)];
+        for(i=1:size(LIST_OF_COMMANDS,2))
+            commandID = LIST_OF_COMMANDS(i);
+            bytes_to_send = [bytes_to_send protocol_get_command(commandID)];
+        end
         multiple_command = multiple_command - 1;
     end
     serial_send_bytes(serConn,bytes_to_send);
