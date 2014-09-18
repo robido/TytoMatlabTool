@@ -1,4 +1,4 @@
-function [STATE CYCLE] = CORE_LOOP( serConn, STATE )
+function [STATE CYCLE] = CORE_LOOP( serConn, STATE, LIST_OF_COMMANDS )
 %Update the state using serial comm and protocol functions
 
 persistent time_last ACKS
@@ -6,9 +6,6 @@ if(isempty(time_last))
     time_last = now;
     ACKS = [];
 end
-
-%LIST_OF_COMMANDS = [101 254];
-LIST_OF_COMMANDS = [254];
 
 %Get all received data until now
 CYCLE = 0;
@@ -29,7 +26,7 @@ seconds_since_last = 24*3600*(now-time_last);
 if(CYCLE == 1 || seconds_since_last>0.2) %Timeout value
     multiple_command = 0;
     if(CYCLE~=1)
-        disp('RX_TIMOUT'); 
+        %disp('RX_TIMOUT'); 
         multiple_command = 1;
     end   
     bytes_to_send = [];

@@ -22,7 +22,7 @@ function varargout = serial_GUI_noICT(varargin)
 
 % Edit the above text to modify the response to help serial_GUI_noICT
 
-% Last Modified by GUIDE v2.5 14-Sep-2014 16:30:52
+% Last Modified by GUIDE v2.5 17-Sep-2014 22:45:54
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -57,8 +57,13 @@ catch
     handles = guidata(hObject);
 end
 
+%Get the list of commands to be refreshed
+M_Selections = get(handles.list_M_data,'Value');
+Plot_Selections = get(handles.list_plot,'Value');
+List_of_commands = protocol_find_simple_list(M_Selections,Plot_Selections);
+
 %Update the state using serial comm and protocol functions
-[STATE, CYCLE] = CORE_LOOP(handles.serConn,STATE);
+[STATE, CYCLE] = CORE_LOOP(handles.serConn,STATE,List_of_commands);
     
 if(CYCLE) %Only update after a full cycle
     %Get serial refresh rate
@@ -67,22 +72,18 @@ if(CYCLE) %Only update after a full cycle
     last_cycle = current_time;
     serial_delay = 24*3600*serialTime;
     serial_Hz = round(1/serial_delay);
-    
-    %Get results
+
+    %Display on graph
     cycleTime = protocol_get_cycleTime(STATE);
     debug = protocol_get_debug(STATE); 
-    
-    %Display on graph
     OSCILLOSCOPE_update([cycleTime debug(1)]);
     
     refresh_delay = refresh_delay + 1;
-    if(refresh_delay>10)
+    if(refresh_delay>5) %This value controls how often the text is refreshed.
         %Display on GUI
         set(handles.txt_serial_Hz,'String',num2str(serial_Hz));
-        DISP_string = [];
-        DISP_string = [DISP_string,'cycleTime (us):',32,num2str(cycleTime),10,13];
-        DISP_string = [DISP_string,'cycleTime (Hz):',32,num2str(round(1000000/cycleTime)),10,13];
-        DISP_string = [DISP_string,'debug:',32,num2str(debug),10,13];
+        
+        DISP_string = protocol_get_M_display(STATE,List_of_commands); 
         set(handles.txt_test,'String',DISP_string);
         refresh_delay = 0;
         drawnow
@@ -106,6 +107,24 @@ handles.GUItimer = GUItimer;
 handles.output = hObject;
 
 OSCILLOSCOPE_init
+
+%Fill the heli data box
+M_DATA = protocol_get_list_M_data();
+size_data = size(M_DATA,2);
+content = {};
+for(i=1:size_data)
+    content{i}=M_DATA{i}.NAME;
+end
+set(handles.list_M_data,'String',content);
+
+%Fill the list to plot
+P_LIST = protocol_get_plot_list();
+size_data = size(P_LIST,2);
+content = {};
+for(i=1:size_data)
+    content{i}=P_LIST{i}.NAME;
+end
+set(handles.list_plot,'String',content);
 
 % Update handles structure
 guidata(hObject, handles);
@@ -223,7 +242,10 @@ if strcmp(get(handles.connectButton,'String'),'Disconnect')
 else
     %Stop what can be stopped
     stop(handles.GUItimer);
+    try
     serial_close(handles.serConn);
+    catch
+    end
 
     OSCILLOSCOPE_close;
     
@@ -238,3 +260,49 @@ function figure1_CreateFcn(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 addpath(genpath(pwd));
+
+
+% --- Executes on selection change in list_plot.
+function list_plot_Callback(hObject, eventdata, handles)
+% hObject    handle to list_plot (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns list_plot contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from list_plot
+
+
+% --- Executes during object creation, after setting all properties.
+function list_plot_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to list_plot (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: listbox controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on selection change in list_M_data.
+function list_M_data_Callback(hObject, eventdata, handles)
+% hObject    handle to list_M_data (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns list_M_data contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from list_M_data
+
+
+% --- Executes during object creation, after setting all properties.
+function list_M_data_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to list_M_data (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: listbox controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
