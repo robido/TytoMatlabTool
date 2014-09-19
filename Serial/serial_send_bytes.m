@@ -1,4 +1,8 @@
 function serial_send_bytes( PORT, BYTES )
-fwrite(PORT,BYTES,'async');
+try
+    fwrite(PORT,BYTES,'async');
+catch e
+    disp(e.message);
+end
 end
 

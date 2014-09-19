@@ -1,4 +1,4 @@
-function [STATE CYCLE] = CORE_LOOP( serConn, STATE, LIST_OF_COMMANDS )
+function [STATE CYCLE] = CORE_LOOP( serConn, STATE, LIST_OF_COMMANDS, DELAY_COMP )
 %Update the state using serial comm and protocol functions
 
 persistent time_last ACKS
@@ -23,11 +23,11 @@ if(isequal(LIST_OF_COMMANDS, ACKS))
 end
 
 seconds_since_last = 24*3600*(now-time_last);
-if(CYCLE == 1 || seconds_since_last>0.2) %Timeout value
+if(CYCLE == 1 || seconds_since_last>0.5) %Timeout value
     multiple_command = 0;
     if(CYCLE~=1)
         %disp('RX_TIMOUT'); 
-        multiple_command = 1;
+        multiple_command = DELAY_COMP; %Compensates for bluetooth transmission delays by sending the next command before the last one is acknowledged.
     end   
     bytes_to_send = [];
     while(multiple_command >= 0)
@@ -35,9 +35,14 @@ if(CYCLE == 1 || seconds_since_last>0.2) %Timeout value
             commandID = LIST_OF_COMMANDS(i);
             bytes_to_send = [bytes_to_send protocol_get_command(commandID)];
         end
-        multiple_command = multiple_command - 1;
+        num_bytes = size(bytes_to_send,2);
+        if(num_bytes>=multiple_command)
+            multiple_command = -1;
+        end
     end
+
     serial_send_bytes(serConn,bytes_to_send);
+
     time_last = now;
     ACKS = [];
 end

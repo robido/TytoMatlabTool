@@ -22,7 +22,7 @@ function varargout = serial_GUI_noICT(varargin)
 
 % Edit the above text to modify the response to help serial_GUI_noICT
 
-% Last Modified by GUIDE v2.5 17-Sep-2014 22:45:54
+% Last Modified by GUIDE v2.5 19-Sep-2014 09:20:15
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -44,7 +44,8 @@ end
 % End initialization code - DO NOT EDIT
 
 function GUI_update_timer(~,~,hObject)
-persistent STATE last_cycle refresh_delay
+persistent STATE last_cycle refresh_delay averageSerialHz
+
 if(isempty(last_cycle))
     last_cycle = now;
     refresh_delay = 0;
@@ -60,10 +61,16 @@ end
 %Get the list of commands to be refreshed
 M_Selections = get(handles.list_M_data,'Value');
 Plot_Selections = get(handles.list_plot,'Value');
+size_psel = size(Plot_Selections,2);
+if(size_psel>3)
+    Plot_Selections(4:size_psel)=[]; %Limit selection to 3 
+    set(handles.list_plot,'Value',Plot_Selections);
+end
 List_of_commands = protocol_find_simple_list(M_Selections,Plot_Selections);
+Delay_comp = round(str2double(get(handles.txt_delay_comp,'String')));
 
 %Update the state using serial comm and protocol functions
-[STATE, CYCLE] = CORE_LOOP(handles.serConn,STATE,List_of_commands);
+[STATE, CYCLE] = CORE_LOOP(handles.serConn,STATE,List_of_commands,Delay_comp);
     
 if(CYCLE) %Only update after a full cycle
     %Get serial refresh rate
@@ -71,24 +78,26 @@ if(CYCLE) %Only update after a full cycle
     serialTime = current_time-last_cycle;
     last_cycle = current_time;
     serial_delay = 24*3600*serialTime;
-    serial_Hz = round(1/serial_delay);
+    serial_Hz = 1/serial_delay;
+    averageSerialHz = [averageSerialHz serial_Hz];
+    STATE.SERIAL_STATUS.serial_Hz = serial_Hz;
 
-    %Display on graph
-    cycleTime = protocol_get_cycleTime(STATE);
-    debug = protocol_get_debug(STATE); 
-    OSCILLOSCOPE_update([cycleTime debug(1)]);
+    %Display on PLOT
+    plot_values = protocol_get_plot_values(STATE,Plot_Selections);
+    OSCILLOSCOPE_update(plot_values);
     
     refresh_delay = refresh_delay + 1;
     if(refresh_delay>5) %This value controls how often the text is refreshed.
         %Display on GUI
-        set(handles.txt_serial_Hz,'String',num2str(serial_Hz));
+        set(handles.txt_serial_Hz,'String',num2str(round(mean(averageSerialHz))));
+        averageSerialHz = [];
         
         DISP_string = protocol_get_M_display(STATE,List_of_commands); 
         set(handles.txt_test,'String',DISP_string);
         refresh_delay = 0;
-        drawnow
-    end
+    end 
 end
+drawnow
 
 % --- Executes just before serial_GUI_noICT is made visible.
 function serial_GUI_noICT_OpeningFcn(hObject, eventdata, handles, varargin)
@@ -224,11 +233,17 @@ if strcmp(get(hObject,'String'),'Connect') % currently disconnected
         guidata(hObject, handles);
         start(handles.GUItimer);
         set(hObject, 'String','Disconnect')
+        set(handles.portList,'Enable','off');
+        set(handles.baudRateText,'Enable','off');
+        set(handles.txt_delay_comp,'Enable','off');
     end
 else  
     set(hObject, 'String','Connect')
     stop(handles.GUItimer);
     serial_close(handles.serConn);
+    set(handles.portList,'Enable','on');
+    set(handles.baudRateText,'Enable','on');
+    set(handles.txt_delay_comp,'Enable','on');
 end
 guidata(hObject, handles);
 
@@ -302,6 +317,29 @@ function list_M_data_CreateFcn(hObject, eventdata, handles)
 % handles    empty - handles not created until after all CreateFcns called
 
 % Hint: listbox controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function txt_delay_comp_Callback(hObject, eventdata, handles)
+% hObject    handle to txt_delay_comp (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of txt_delay_comp as text
+%        str2double(get(hObject,'String')) returns contents of txt_delay_comp as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function txt_delay_comp_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to txt_delay_comp (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
 %       See ISPC and COMPUTER.
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
