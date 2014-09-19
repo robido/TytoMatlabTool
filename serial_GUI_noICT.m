@@ -80,7 +80,7 @@ if(CYCLE) %Only update after a full cycle
     serial_delay = 24*3600*serialTime;
     serial_Hz = 1/serial_delay;
     averageSerialHz = [averageSerialHz serial_Hz];
-    STATE.SERIAL_STATUS.serial_Hz = serial_Hz;
+    STATE.SERIAL.rate = serial_Hz;
 
     %Display on PLOT
     plot_values = protocol_get_plot_values(STATE,Plot_Selections);
@@ -91,6 +91,12 @@ if(CYCLE) %Only update after a full cycle
         %Display on GUI
         set(handles.txt_serial_Hz,'String',num2str(round(mean(averageSerialHz))));
         averageSerialHz = [];
+        
+        %Display plot text
+        plot_names = protocol_get_plot_names(STATE,Plot_Selections);
+        set(handles.txt_plot_1,'String',strcat(plot_names{1},':',32,num2str(plot_values(1))));
+        set(handles.txt_plot_2,'String',strcat(plot_names{2},':',32,num2str(plot_values(2))));
+        set(handles.txt_plot_3,'String',strcat(plot_names{3},':',32,num2str(plot_values(3))));
         
         DISP_string = protocol_get_M_display(STATE,List_of_commands); 
         set(handles.txt_test,'String',DISP_string);
@@ -118,6 +124,7 @@ handles.output = hObject;
 OSCILLOSCOPE_init
 
 %Fill the heli data box
+protocol_import_DEF(1); %Refresh the imported data
 M_DATA = protocol_get_list_M_data();
 size_data = size(M_DATA,2);
 content = {};

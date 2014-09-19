@@ -1,19 +1,18 @@
 function M_DATA = protocol_get_list_M_data()
 %returns the list of displayable data and their codes for the Multiwii
 %(Heli)
-i=1;
+[DEF_VAL DEF_STRING DEF_SIZE] = protocol_import_DEF();
 
-M_DATA{i}.NAME='Cycle time, I2C Errors';
-M_DATA{i}.ID=101;
-i=i+1;
-
-M_DATA{i}.NAME='IMU data';
-M_DATA{i}.ID=102;
-i=i+1;
-
-M_DATA{i}.NAME='Debug values';
-M_DATA{i}.ID=254;
-i=i+1;
+count = 1;
+for i=1:DEF_SIZE
+    NAME = DEF_STRING{i,7};
+    DISPLAY = DEF_VAL(i,4);
+    if(DISPLAY)
+        M_DATA{count}.NAME = NAME;
+        M_DATA{count}.ID = DEF_VAL(i,1);
+        count = count+1;
+    end
+end
 
 end
 
