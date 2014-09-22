@@ -22,7 +22,7 @@ function varargout = serial_GUI_noICT(varargin)
 
 % Edit the above text to modify the response to help serial_GUI_noICT
 
-% Last Modified by GUIDE v2.5 19-Sep-2014 09:20:15
+% Last Modified by GUIDE v2.5 21-Sep-2014 22:33:59
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -49,6 +49,7 @@ persistent STATE last_cycle refresh_delay averageSerialHz
 if(isempty(last_cycle))
     last_cycle = now;
     refresh_delay = 0;
+    STATE.OUTCOMMANDS = [];
 end
 
 %Get handles structure
@@ -66,7 +67,7 @@ if(size_psel>3)
     Plot_Selections(4:size_psel)=[]; %Limit selection to 3 
     set(handles.list_plot,'Value',Plot_Selections);
 end
-List_of_commands = protocol_find_simple_list(M_Selections,Plot_Selections);
+List_of_commands = protocol_find_simple_list(M_Selections,Plot_Selections,STATE.OUTCOMMANDS);
 Delay_comp = round(str2double(get(handles.txt_delay_comp,'String')));
 
 %Update the state using serial comm and protocol functions
@@ -98,10 +99,51 @@ if(CYCLE) %Only update after a full cycle
         set(handles.txt_plot_2,'String',strcat(plot_names{2},':',32,num2str(plot_values(2))));
         set(handles.txt_plot_3,'String',strcat(plot_names{3},':',32,num2str(plot_values(3))));
         
-        DISP_string = protocol_get_M_display(STATE,List_of_commands); 
+        if(~isempty(M_Selections))
+            List_to_display = protocol_find_simple_list(M_Selections,[],[]);
+        else
+            List_to_display = [];
+        end
+        DISP_string = protocol_get_M_display(STATE,List_to_display); 
+        if (get(handles.txt_test,'Value')>size(DISP_string,2) )
+            set(handles.txt_test,'Value',size(DISP_string,2));
+        end
         set(handles.txt_test,'String',DISP_string);
         refresh_delay = 0;
-    end 
+    end
+    
+    %Get the joystick readings
+    joy=jst;   
+    THROTTLE = joy(2);
+    YAW = -joy(3);
+    PITCH = -(2*joy(4)-1);
+    ROLL = -joy(1);
+    
+    %Display joystick
+    set(handles.left_joy_plot,'XData',YAW,'YData',THROTTLE);
+    set(handles.right_joy_plot,'XData',ROLL,'YData',PITCH);
+    
+    if( get(handles.chk_manual_rc,'Value') )
+        ROLL = 1500 + 500*ROLL;
+        PITCH = 1500 + 500*PITCH;
+        YAW = 1500 + 500*YAW;
+        THROTTLE = 1500 + 500*THROTTLE;
+        AUX1 = 1501;
+        AUX2 = 1502;
+        AUX3 = 1503;
+        AUX4 = 1504;
+        RC_VALS = [ROLL PITCH YAW THROTTLE AUX1 AUX2 AUX3 AUX4];
+        [r,c]=find(RC_VALS>2000);
+        RC_VALS(sub2ind(size(RC_VALS),r,c)) = 2000;
+        [r,c]=find(RC_VALS<1000);
+        RC_VALS(sub2ind(size(RC_VALS),r,c)) = 1000;
+        
+        STATE.MSP_SET_RAW_RC = RC_VALS;
+        STATE.OUTCOMMANDS = [STATE.OUTCOMMANDS 200]; %Request this command to be sent.
+        STATE.OUTCOMMANDS = unique(STATE.OUTCOMMANDS);
+    else
+        STATE.OUTCOMMANDS = STATE.OUTCOMMANDS(STATE.OUTCOMMANDS~=200);
+    end
 end
 drawnow
 
@@ -128,10 +170,13 @@ protocol_import_DEF(1); %Refresh the imported data
 M_DATA = protocol_get_list_M_data();
 size_data = size(M_DATA,2);
 content = {};
-for(i=1:size_data)
+counter = 1;
+for i=1:size_data
     content{i}=M_DATA{i}.NAME;
 end
 set(handles.list_M_data,'String',content);
+
+set(handles.txt_test,'BackgroundColor',get(handles.figure1,'Color'));
 
 %Fill the list to plot
 P_LIST = protocol_get_plot_list();
@@ -141,6 +186,27 @@ for(i=1:size_data)
     content{i}=P_LIST{i}.NAME;
 end
 set(handles.list_plot,'String',content);
+
+%Make the joystick plots
+handles.left_joy_plot = plot(handles.axes_joy_left,0,0,'ro','MarkerFaceColor','r');
+xlabel(handles.axes_joy_left,'Yaw');
+ylabel(handles.axes_joy_left,'Throttle');
+xlim(handles.axes_joy_left,'manual');
+xlim(handles.axes_joy_left,[-1 1]);
+ylim(handles.axes_joy_left,'manual');
+ylim(handles.axes_joy_left,[-1 1]);
+set(handles.axes_joy_left,'YTickLabel',[]);
+set(handles.axes_joy_left,'XTickLabel',[]);
+
+handles.right_joy_plot = plot(handles.axes_joy_right,0,0,'ro','MarkerFaceColor','r');
+xlabel(handles.axes_joy_right,'Roll');
+ylabel(handles.axes_joy_right,'Pitch');
+xlim(handles.axes_joy_right,'manual');
+xlim(handles.axes_joy_right,[-1 1]);
+ylim(handles.axes_joy_right,'manual');
+ylim(handles.axes_joy_right,[-1 1]);
+set(handles.axes_joy_right,'YTickLabel',[]);
+set(handles.axes_joy_right,'XTickLabel',[]);
 
 % Update handles structure
 guidata(hObject, handles);
@@ -343,6 +409,56 @@ function txt_delay_comp_Callback(hObject, eventdata, handles)
 % --- Executes during object creation, after setting all properties.
 function txt_delay_comp_CreateFcn(hObject, eventdata, handles)
 % hObject    handle to txt_delay_comp (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in chk_manual_rc.
+function chk_manual_rc_Callback(hObject, eventdata, handles)
+% hObject    handle to chk_manual_rc (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of chk_manual_rc
+
+
+% --- Executes on button press in right_joy_pos.
+function right_joy_pos_Callback(hObject, eventdata, handles)
+% hObject    handle to right_joy_pos (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of right_joy_pos
+
+
+% --- Executes on button press in left_joy_pos.
+function left_joy_pos_Callback(hObject, eventdata, handles)
+% hObject    handle to left_joy_pos (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of left_joy_pos
+
+
+
+function txt_test_Callback(hObject, eventdata, handles)
+% hObject    handle to txt_test (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of txt_test as text
+%        str2double(get(hObject,'String')) returns contents of txt_test as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function txt_test_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to txt_test (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 

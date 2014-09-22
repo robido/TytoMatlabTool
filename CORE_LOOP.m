@@ -18,7 +18,7 @@ while(serConn.BytesAvailable()>0 && ~isequal(LIST_OF_COMMANDS, ACKS))
 end
 
 %Check that a full report was received
-if(isequal(LIST_OF_COMMANDS, ACKS))
+if( min(ismember(LIST_OF_COMMANDS,ACKS)) )
     CYCLE = 1;
 end
 
@@ -33,7 +33,7 @@ if(CYCLE == 1 || seconds_since_last>0.5) %Timeout value
     while(multiple_command >= 0)
         for(i=1:size(LIST_OF_COMMANDS,2))
             commandID = LIST_OF_COMMANDS(i);
-            bytes_to_send = [bytes_to_send protocol_get_command(commandID)];
+            bytes_to_send = [bytes_to_send protocol_get_command(commandID,STATE)];
         end
         num_bytes = size(bytes_to_send,2);
         if(num_bytes>=multiple_command)

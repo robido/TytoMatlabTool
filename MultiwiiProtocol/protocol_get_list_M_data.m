@@ -7,9 +7,10 @@ count = 1;
 for i=1:DEF_SIZE
     NAME = DEF_STRING{i,7};
     DISPLAY = DEF_VAL(i,4);
+    ID = DEF_VAL(i,1);
     if(DISPLAY)
         M_DATA{count}.NAME = NAME;
-        M_DATA{count}.ID = DEF_VAL(i,1);
+        M_DATA{count}.ID = ID;
         count = count+1;
     end
 end

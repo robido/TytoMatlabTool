@@ -1,7 +1,7 @@
-function List_of_commands = protocol_find_simple_list( M_Selections, Plot_Selections )
+function List_of_commands = protocol_find_simple_list( M_Selections, Plot_Selections, OTHER_COMMANDS )
 
 %Get the complete list of commands needed to be refreshed on serial port
-List_of_commands = [];
+List_of_commands = OTHER_COMMANDS;
 M_data = protocol_get_list_M_data();
 M_size = size(M_data,2);
 M_selection_size = size(M_Selections,2);
@@ -9,7 +9,9 @@ M_selection_size = size(M_Selections,2);
 %Get list of allowed commands
 ALLOWED = [];
 for i=1:M_size
-    ALLOWED = [ALLOWED M_data{i}.ID];
+    if(M_data{i}.ID ~= 0)
+        ALLOWED = [ALLOWED M_data{i}.ID];
+    end
 end
 
 for i=1:M_selection_size
