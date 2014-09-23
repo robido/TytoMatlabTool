@@ -9,9 +9,17 @@ switch cmd
         PAYLOAD = [];
 end
 
+%Board based on number
+if(cmd<1000)
+    BOARD = 'M';
+else
+    BOARD = 'R';
+    cmd = cmd-1000;
+end
+
 Payload_size = size(PAYLOAD,2);
 checksum = 0;
-COMMAND = ['$' 'M' '<']; 
+COMMAND = ['$' BOARD '<']; 
 checksum = bitxor(checksum,Payload_size);
 COMMAND = [COMMAND Payload_size];
 

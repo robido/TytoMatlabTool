@@ -1,4 +1,4 @@
-function STATE = protocol_update_state( cmdMSP, inBuf, STATE )
+function STATE = protocol_update_state( cmdMSP, inBuf, STATE, BOARD )
 %PROTOCOL_UPDATE_STATE
 
 [DEF_VAL DEF_STRING DEF_SIZE] = protocol_import_DEF();
@@ -20,7 +20,7 @@ for i=1:DEF_SIZE
               Value = typecast(inBuf(byte_counter:byte_counter+1),TYPE);
               byte_counter = byte_counter + 2;
            end 
-           EVAL_STR = strcat('STATE.M.',CELL_IDENT,'.',VALUE_IDENT,'=Value;');
+           EVAL_STR = strcat('STATE.',BOARD,'.',CELL_IDENT,'.',VALUE_IDENT,'=Value;');
            eval(EVAL_STR); %Save into state variable.
         end
         
