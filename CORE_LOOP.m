@@ -13,7 +13,8 @@ while(serConn.BytesAvailable()>0 && ~isequal(LIST_OF_COMMANDS, ACKS))
     byte = fread(serConn,1,'uchar');
     [ACK, STATE] = protocol_process(byte, STATE);
     if(ACK~=0)
-        ACKS = [ACKS ACK];
+        ACKS = [double(ACKS) double(ACK)];
+        ACK
     end
 end
 

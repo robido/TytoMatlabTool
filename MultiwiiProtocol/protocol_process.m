@@ -13,7 +13,7 @@ if(isempty(checksum))
 end
 
 byte = uint8(byte);
-ACK = 0;
+ACK = double(0);
 
 %Follows the Multiwii implementation in protocol.cpp. Adapted for use with
 %a RELAY board.
@@ -57,7 +57,7 @@ switch c_state
                 cmdMSP = cast(cmdMSP,'double')+1000;
              end
              STATE = protocol_update_state(cmdMSP, inBuf, STATE, BOARD);
-             ACK = cmdMSP;
+             ACK = double(cmdMSP);
          end
          c_state = 0;
      end
