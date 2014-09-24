@@ -17,13 +17,20 @@ for i=1:DEF_SIZE
            TYPE = DEF_STRING{i,4};
            Value = 0;
            if(strcmp(TYPE,'uint16')||strcmp(TYPE,'int16'))
-              try
-                Value = typecast(inBuf(byte_counter:byte_counter+1),TYPE);
-              catch e
-                disp(strcat('Expecting more incoming data (file protocol_update_state.m)',32,e.message));
-              end
-                byte_counter = byte_counter + 2;
-           end 
+               len = 2;
+           else
+                if(strcmp(TYPE,'uint8')||strcmp(TYPE,'int8'))
+                    len = 1;
+                else
+                    error('Unspecified datatype, protocol_update_state.m');
+                end
+           end
+           try
+              Value = typecast(inBuf(byte_counter:byte_counter+len-1),TYPE);
+            catch e
+              disp(strcat('Expecting more incoming data (file protocol_update_state.m)',32,e.message));
+           end
+           byte_counter = byte_counter + len;
            EVAL_STR = strcat('STATE.',BOARD,'.',CELL_IDENT,'.',VALUE_IDENT,'=Value;');
            eval(EVAL_STR); %Save into state variable.
         end
