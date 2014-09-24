@@ -113,11 +113,11 @@ if(CYCLE) %Only update after a full cycle
     end
     
     %Get the joystick readings
-    joy=jst;   
-    THROTTLE = joy(2);
-    YAW = -joy(3);
-    PITCH = -(2*joy(4)-1);
-    ROLL = -joy(1);
+    joy=jst   
+    THROTTLE = joy(1);
+    YAW = joy(2);
+    PITCH = joy(3);
+    ROLL = joy(4);
     
     %Display joystick
     set(handles.left_joy_plot,'XData',YAW,'YData',THROTTLE);
@@ -128,10 +128,10 @@ if(CYCLE) %Only update after a full cycle
         PITCH = 1500 + 500*PITCH;
         YAW = 1500 + 500*YAW;
         THROTTLE = 1500 + 500*THROTTLE;
-        AUX1 = 1501;
-        AUX2 = 1502;
-        AUX3 = 1503;
-        AUX4 = 1504;
+        AUX1 = 1500;
+        AUX2 = 1500;
+        AUX3 = 1500;
+        AUX4 = 1500;
         RC_VALS = [ROLL PITCH YAW THROTTLE AUX1 AUX2 AUX3 AUX4];
         [r,c]=find(RC_VALS>2000);
         RC_VALS(sub2ind(size(RC_VALS),r,c)) = 2000;
