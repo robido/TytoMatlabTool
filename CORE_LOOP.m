@@ -1,4 +1,4 @@
-function [STATE CYCLE] = CORE_LOOP( serConn, STATE, LIST_OF_COMMANDS, DELAY_COMP )
+function [STATE CYCLE] = CORE_LOOP( serConn, captureFile, STATE, LIST_OF_COMMANDS, DELAY_COMP )
 %Update the state using serial comm and protocol functions
 
 persistent time_last ACKS
@@ -9,13 +9,13 @@ end
 
 %Get all received data until now
 CYCLE = 0;
-while(serConn.BytesAvailable()>0 && ~isequal(LIST_OF_COMMANDS, ACKS))
-    byte = fread(serConn,1,'uchar');
-    [ACK, STATE] = protocol_process(byte, STATE);
+next_byte = serial_get_byte(captureFile);
+while(~isempty(next_byte) && ~isequal(LIST_OF_COMMANDS, ACKS))
+    [ACK, STATE] = protocol_process(next_byte, STATE);
     if(ACK~=0)
         ACKS = [double(ACKS) double(ACK)];
-        ACK
     end
+    next_byte = serial_get_byte(captureFile);
 end
 
 %Check that a full report was received

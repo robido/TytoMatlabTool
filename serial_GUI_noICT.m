@@ -22,7 +22,7 @@ function varargout = serial_GUI_noICT(varargin)
 
 % Edit the above text to modify the response to help serial_GUI_noICT
 
-% Last Modified by GUIDE v2.5 21-Sep-2014 22:33:59
+% Last Modified by GUIDE v2.5 02-Oct-2014 15:51:35
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -59,6 +59,39 @@ catch
     handles = guidata(hObject);
 end
 
+%Get the joystick readings
+joy=jst;   
+THROTTLE = joy(1);
+YAW = joy(2);
+PITCH = joy(3);
+ROLL = joy(4)-0.5;
+
+%Display joystick
+set(handles.left_joy_plot,'XData',YAW,'YData',THROTTLE);
+set(handles.right_joy_plot,'XData',ROLL,'YData',PITCH);
+
+if( get(handles.chk_manual_rc,'Value') )
+    ROLL = 1400 + 100*ROLL;
+    PITCH = 1500 + 500*PITCH;
+    YAW = 1500 + 500*YAW;
+    THROTTLE = 1500 + 500*THROTTLE;
+    AUX1 = 1500;
+    AUX2 = 1500;
+    AUX3 = 1500;
+    AUX4 = 1500;
+    RC_VALS = [ROLL PITCH YAW THROTTLE AUX1 AUX2 AUX3 AUX4];
+    [r,c]=find(RC_VALS>2000);
+    RC_VALS(sub2ind(size(RC_VALS),r,c)) = 2000;
+    [r,c]=find(RC_VALS<1000);
+    RC_VALS(sub2ind(size(RC_VALS),r,c)) = 1000;
+
+    STATE.MSP_SET_RAW_RC = RC_VALS;
+    STATE.OUTCOMMANDS = [STATE.OUTCOMMANDS 200]; %Request this command to be sent.
+    STATE.OUTCOMMANDS = unique(STATE.OUTCOMMANDS);
+else
+    STATE.OUTCOMMANDS = STATE.OUTCOMMANDS(STATE.OUTCOMMANDS~=200);
+end
+
 %Get the list of commands to be refreshed
 M_Selections = get(handles.list_M_data,'Value');
 Plot_Selections = get(handles.list_plot,'Value');
@@ -71,7 +104,7 @@ List_of_commands = protocol_find_simple_list(M_Selections,Plot_Selections,STATE.
 Delay_comp = round(str2double(get(handles.txt_delay_comp,'String')));
 
 %Update the state using serial comm and protocol functions
-[STATE, CYCLE] = CORE_LOOP(handles.serConn,STATE,List_of_commands,Delay_comp);
+[STATE, CYCLE] = CORE_LOOP(handles.serConn, handles.captureFile ,STATE,List_of_commands,Delay_comp);
     
 if(CYCLE) %Only update after a full cycle
     %Get serial refresh rate
@@ -88,7 +121,7 @@ if(CYCLE) %Only update after a full cycle
     OSCILLOSCOPE_update(plot_values);
     
     refresh_delay = refresh_delay + 1;
-    if(refresh_delay>5) %This value controls how often the text is refreshed.
+    if(refresh_delay>0) %This value controls how often the text is refreshed.
         %Display on GUI
         set(handles.txt_serial_Hz,'String',num2str(round(mean(averageSerialHz))));
         averageSerialHz = [];
@@ -111,52 +144,11 @@ if(CYCLE) %Only update after a full cycle
         set(handles.txt_test,'String',DISP_string);
         refresh_delay = 0;
     end
-    
-    %Get the joystick readings
-    joy=jst   
-    THROTTLE = joy(1);
-    YAW = joy(2);
-    PITCH = joy(3);
-    ROLL = joy(4);
-    
-    %Display joystick
-    set(handles.left_joy_plot,'XData',YAW,'YData',THROTTLE);
-    set(handles.right_joy_plot,'XData',ROLL,'YData',PITCH);
-    
-    if( get(handles.chk_manual_rc,'Value') )
-        ROLL = 1500 + 500*ROLL;
-        PITCH = 1500 + 500*PITCH;
-        YAW = 1500 + 500*YAW;
-        THROTTLE = 1500 + 500*THROTTLE;
-        AUX1 = 1500;
-        AUX2 = 1500;
-        AUX3 = 1500;
-        AUX4 = 1500;
-        RC_VALS = [ROLL PITCH YAW THROTTLE AUX1 AUX2 AUX3 AUX4];
-        [r,c]=find(RC_VALS>2000);
-        RC_VALS(sub2ind(size(RC_VALS),r,c)) = 2000;
-        [r,c]=find(RC_VALS<1000);
-        RC_VALS(sub2ind(size(RC_VALS),r,c)) = 1000;
-        
-        STATE.MSP_SET_RAW_RC = RC_VALS;
-        STATE.OUTCOMMANDS = [STATE.OUTCOMMANDS 200]; %Request this command to be sent.
-        STATE.OUTCOMMANDS = unique(STATE.OUTCOMMANDS);
-    else
-        STATE.OUTCOMMANDS = STATE.OUTCOMMANDS(STATE.OUTCOMMANDS~=200);
-    end
 end
 drawnow
 
 % --- Executes just before serial_GUI_noICT is made visible.
 function serial_GUI_noICT_OpeningFcn(hObject, eventdata, handles, varargin)
-
-%Get the list of available ports
-comPORTS = get_serial_ports();
-
-% serialPorts = instrhwinfo('serial');
-% nPorts = length(serialPorts.SerialPorts);
-set(handles.portList, 'String', comPORTS);
-set(handles.portList, 'Value', 1);   
 
 GUItimer = timer('TimerFcn',{@GUI_update_timer,hObject},'StartDelay',0.5,'Period',0.001,'ExecutionMode','fixedRate','BusyMode','queue');
 handles.GUItimer = GUItimer;
@@ -207,6 +199,14 @@ ylim(handles.axes_joy_right,'manual');
 ylim(handles.axes_joy_right,[-1 1]);
 set(handles.axes_joy_right,'YTickLabel',[]);
 set(handles.axes_joy_right,'XTickLabel',[]);
+
+%Load essential GUI data if any
+try
+load('GUI_DATA','GUI_DATA');
+set(handles.txt_COM,'String',GUI_DATA.com);
+set(handles.baudRateText,'String',GUI_DATA.baud);
+catch
+end
 
 % Update handles structure
 guidata(hObject, handles);
@@ -295,26 +295,25 @@ end
 % --- Executes on button press in connectButton.
 function connectButton_Callback(hObject, eventdata, handles)    
 if strcmp(get(hObject,'String'),'Connect') % currently disconnected
-    serPortn = get(handles.portList, 'Value');
-    serList = get(handles.portList,'String');
-    serPort = serList{serPortn};
+    serPort = get(handles.txt_COM,'String');
     
     %Activate the serial connection
-    serConn = serial_setup_open(serPort, str2num(get(handles.baudRateText, 'String')));
+    [serConn serFile] = serial_setup_open(serPort, str2num(get(handles.baudRateText, 'String')));
     if(serConn ~= 0)
         handles.serConn = serConn;
+        handles.captureFile = serFile;
         guidata(hObject, handles);
         start(handles.GUItimer);
         set(hObject, 'String','Disconnect')
-        set(handles.portList,'Enable','off');
+        set(handles.txt_COM,'Enable','off');
         set(handles.baudRateText,'Enable','off');
         set(handles.txt_delay_comp,'Enable','off');
     end
 else  
     set(hObject, 'String','Connect')
     stop(handles.GUItimer);
-    serial_close(handles.serConn);
-    set(handles.portList,'Enable','on');
+    serial_close(handles.serConn,handles.captureFile);
+    set(handles.txt_COM,'Enable','on');
     set(handles.baudRateText,'Enable','on');
     set(handles.txt_delay_comp,'Enable','on');
 end
@@ -331,11 +330,16 @@ else
     %Stop what can be stopped
     stop(handles.GUItimer);
     try
-    serial_close(handles.serConn);
+    serial_close(handles.serConn,handles.captureFile);
     catch
     end
 
     OSCILLOSCOPE_close;
+    
+    %Save essential GUI data
+    GUI_DATA.com = get(handles.txt_COM,'String');
+    GUI_DATA.baud = get(handles.baudRateText,'String');
+    save('GUI_DATA','GUI_DATA');
     
     % Hint: delete(hObject) closes the figure
     delete(hObject);
@@ -459,6 +463,38 @@ function txt_test_Callback(hObject, eventdata, handles)
 % --- Executes during object creation, after setting all properties.
 function txt_test_CreateFcn(hObject, eventdata, handles)
 % hObject    handle to txt_test (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function txt_COM_Callback(hObject, eventdata, handles)
+% hObject    handle to txt_COM (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of txt_COM as text
+%        str2double(get(hObject,'String')) returns contents of txt_COM as a double
+persistent VAL
+if(isempty(VAL))
+    VAL = 1;
+end
+try
+    temp_val = round(str2double(get(hObject,'String')));
+    VAL = temp_val;
+catch
+end
+set(hObject,'String',num2str(VAL));
+
+% --- Executes during object creation, after setting all properties.
+function txt_COM_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to txt_COM (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 

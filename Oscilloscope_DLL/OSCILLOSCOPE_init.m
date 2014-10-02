@@ -4,6 +4,7 @@ currentFolder = pwd;
 cd(folder);
 
 %Compile
+warning('off','MATLAB:dispatcher:ShadowedMEXExtension');
 mex OscMx.c
 
 %Open it
