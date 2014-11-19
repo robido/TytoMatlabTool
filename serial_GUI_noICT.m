@@ -22,7 +22,7 @@ function varargout = serial_GUI_noICT(varargin)
 
 % Edit the above text to modify the response to help serial_GUI_noICT
 
-% Last Modified by GUIDE v2.5 02-Oct-2014 15:51:35
+% Last Modified by GUIDE v2.5 18-Nov-2014 20:26:49
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -430,7 +430,15 @@ function chk_manual_rc_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of chk_manual_rc
-
+if(get(hObject,'Value'))
+    set(handles.chkTrustTest,'Value',0);
+    set(handles.chkTailTest,'Value',0);
+    set(handles.chkTrustTest,'Enable','off');
+    set(handles.chkTailTest,'Enable','off');
+else
+    set(handles.chkTrustTest,'Enable','on');
+    set(handles.chkTailTest,'Enable','on');
+end
 
 % --- Executes on button press in right_joy_pos.
 function right_joy_pos_Callback(hObject, eventdata, handles)
@@ -502,4 +510,39 @@ function txt_COM_CreateFcn(hObject, eventdata, handles)
 %       See ISPC and COMPUTER.
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in chkTrustTest.
+function chkTrustTest_Callback(hObject, eventdata, handles)
+% hObject    handle to chkTrustTest (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of chkTrustTest
+if(get(hObject,'Value'))
+    set(handles.chk_manual_rc,'Value',0);
+    set(handles.chkTailTest,'Value',0);
+    set(handles.chk_manual_rc,'Enable','off');
+    set(handles.chkTailTest,'Enable','off');
+else
+    set(handles.chk_manual_rc,'Enable','on');
+    set(handles.chkTailTest,'Enable','on');
+end
+
+% --- Executes on button press in chkTailTest.
+function chkTailTest_Callback(hObject, eventdata, handles)
+% hObject    handle to chkTailTest (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of chkTailTest
+if(get(hObject,'Value'))
+    set(handles.chk_manual_rc,'Value',0);
+    set(handles.chkTrustTest,'Value',0);
+    set(handles.chk_manual_rc,'Enable','off');
+    set(handles.chkTrustTest,'Enable','off');
+else
+    set(handles.chk_manual_rc,'Enable','on');
+    set(handles.chkTrustTest,'Enable','on');
 end
