@@ -15,6 +15,11 @@ for i=1:DEF_SIZE
            %Get the value to save
            VALUE_IDENT = DEF_STRING{i,1};
            TYPE = DEF_STRING{i,4};
+           SCALING = DEF_VAL(i,10);
+           if(SCALING == 0)
+            SCALING = 1;
+           end
+           DIGITS = DEF_VAL(i,11);
            Value = 0;
            if(strcmp(TYPE,'uint16')||strcmp(TYPE,'int16'))
                len = 2;
@@ -30,6 +35,8 @@ for i=1:DEF_SIZE
             catch e
               disp(strcat('Expecting more incoming data (file protocol_update_state.m)',32,e.message));
            end
+           Value = SCALING*double(Value);
+           Value = round(Value*10^DIGITS)/10^DIGITS;
            byte_counter = byte_counter + len;
            EVAL_STR = strcat('STATE.',BOARD,'.',CELL_IDENT,'.',VALUE_IDENT,'=Value;');
            eval(EVAL_STR); %Save into state variable.
