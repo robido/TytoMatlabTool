@@ -70,6 +70,7 @@ ROLL = joy(4)-0.5;
 set(handles.left_joy_plot,'XData',YAW,'YData',THROTTLE);
 set(handles.right_joy_plot,'XData',ROLL,'YData',PITCH);
 
+%Manual Control
 if( get(handles.chk_manual_rc,'Value') )
     ROLL = 1400 + 100*ROLL;
     PITCH = 1500 + 500*PITCH;
@@ -87,10 +88,16 @@ if( get(handles.chk_manual_rc,'Value') )
 
     STATE.MSP_SET_RAW_RC = RC_VALS;
     STATE.OUTCOMMANDS = [STATE.OUTCOMMANDS 200]; %Request this command to be sent.
-    STATE.OUTCOMMANDS = unique(STATE.OUTCOMMANDS);
 else
-    STATE.OUTCOMMANDS = STATE.OUTCOMMANDS(STATE.OUTCOMMANDS~=200);
+    if( get(handles.chkTrustTest,'Value') ) 
+    else
+        if( get(handles.chkTailTest,'Value') )
+        else
+            STATE.OUTCOMMANDS = STATE.OUTCOMMANDS(STATE.OUTCOMMANDS~=200); %Remove all commands related to manual control
+        end
+    end
 end
+STATE.OUTCOMMANDS = unique(STATE.OUTCOMMANDS);
 
 %Get the list of commands to be refreshed
 M_Selections = get(handles.list_M_data,'Value');
