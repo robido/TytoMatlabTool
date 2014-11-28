@@ -53,6 +53,7 @@ switch c_state
          offset = offset + 1;
      else
          if(checksum == byte) %Compare calculated and transferred checksum
+             disp(strcat('ACK Received: ',BOARD,num2str(cmdMSP)));
              if(BOARD == 'R')
                 cmdMSP = cast(cmdMSP,'double')+1000;
              end
