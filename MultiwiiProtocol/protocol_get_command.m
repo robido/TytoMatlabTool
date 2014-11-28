@@ -16,7 +16,6 @@ else
     BOARD = 'R';
     cmd = cmd-1000;
 end
-disp(strcat('Preparing command: ',BOARD,num2str(cmd)));
 
 Payload_size = size(PAYLOAD,2);
 checksum = 0;
