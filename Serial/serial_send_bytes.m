@@ -1,8 +1,4 @@
 function serial_send_bytes( PORT, BYTES )
-    for m = 1:numel(BYTES)
-        
-        % sends it
-        invoke(PORT, 'PutChar', BYTES(m))
-    end
+    fwrite(PORT,BYTES,'async');
 end
 

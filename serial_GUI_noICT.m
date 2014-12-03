@@ -22,7 +22,7 @@ function varargout = serial_GUI_noICT(varargin)
 
 % Edit the above text to modify the response to help serial_GUI_noICT
 
-% Last Modified by GUIDE v2.5 28-Nov-2014 17:27:29
+% Last Modified by GUIDE v2.5 02-Dec-2014 15:59:26
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -59,27 +59,53 @@ catch
     handles = guidata(hObject);
 end
 
-%Get the joystick readings
-joy=jst;   
-THROTTLE = joy(1);
-YAW = joy(2);
-PITCH = joy(3);
-ROLL = joy(4)-0.5;
+% ***** Custom control commands ********
+%Initialize rc signals
+[ROLL,PITCH,YAW,THROTTLE,AUX1,AUX2,AUX3,AUX4] = deal(1500);
+CHECK_STATUS = get(handles.chk_manual_rc,'Value')...
+    + 2*get(handles.chkTrustTest,'Value')...
+    + 4*get(handles.chkTailTest,'Value')...
+    + 8*get(handles.chk_Sliders_Manual,'Value');
+VALID_RC = 0;
 
-%Display joystick
-set(handles.left_joy_plot,'XData',YAW,'YData',THROTTLE);
-set(handles.right_joy_plot,'XData',ROLL,'YData',PITCH);
-
-%Manual Control
-if( get(handles.chk_manual_rc,'Value') )
+%Custom control
+switch CHECK_STATUS
+  case 1 %Joystick control
+    %Get the joystick readings
+    joy=jst;   
+    THROTTLE = joy(1);
+    YAW = joy(2);
+    PITCH = joy(3);
+    ROLL = joy(4)-0.5;
+    
     ROLL = 1400 + 100*ROLL;
     PITCH = 1500 + 500*PITCH;
     YAW = 1500 + 500*YAW;
     THROTTLE = 1500 + 500*THROTTLE;
-    AUX1 = 1500;
-    AUX2 = 1500;
-    AUX3 = 1500;
-    AUX4 = 1500;
+
+    %Display joystick
+    set(handles.left_joy_plot,'XData',YAW,'YData',THROTTLE);
+    set(handles.right_joy_plot,'XData',ROLL,'YData',PITCH);
+    VALID_RC = 1;
+  case 2 %Trust test script
+    
+  case 4 %Tail test script
+    
+  case 8 %Hardware sliders control
+      try %Maybe data is not ready
+        THROTTLE = STATE.R.MSP_VARIABLE_ADJ.pot1 + 1000;
+        YAW = STATE.R.MSP_VARIABLE_ADJ.pot2 + 1000;
+        AUX1 = STATE.R.MSP_VARIABLE_ADJ.pot3 + 1000;
+        AUX2 = STATE.R.MSP_VARIABLE_ADJ.pot4 + 1000;
+        AUX3 = STATE.R.MSP_VARIABLE_ADJ.pot5 + 1000;
+        AUX4 = STATE.R.MSP_VARIABLE_ADJ.pot6 + 1000;
+        VALID_RC = 1;
+      catch
+      end
+end
+
+if(VALID_RC)
+    %Make RC command
     RC_VALS = [ROLL PITCH YAW THROTTLE AUX1 AUX2 AUX3 AUX4];
     [r,c]=find(RC_VALS>2000);
     RC_VALS(sub2ind(size(RC_VALS),r,c)) = 2000;
@@ -88,30 +114,29 @@ if( get(handles.chk_manual_rc,'Value') )
 
     STATE.MSP_SET_RAW_RC = RC_VALS;
     STATE.OUTCOMMANDS = [STATE.OUTCOMMANDS 200]; %Request this command to be sent.
+    STATE.OUTCOMMANDS = unique(STATE.OUTCOMMANDS);
 else
-    if( get(handles.chkTrustTest,'Value') ) 
-    else
-        if( get(handles.chkTailTest,'Value') )
-        else
-            STATE.OUTCOMMANDS = STATE.OUTCOMMANDS(STATE.OUTCOMMANDS~=200); %Remove all commands related to manual control
-        end
-    end
+    STATE.OUTCOMMANDS = STATE.OUTCOMMANDS(STATE.OUTCOMMANDS~=200); %Remove all commands related to manual control
 end
-STATE.OUTCOMMANDS = unique(STATE.OUTCOMMANDS);
+%********************
 
 %Get the list of commands to be refreshed
+OTHER_COMMANDS = [];
 M_Selections = get(handles.list_M_data,'Value');
+if(get(handles.chk_Sliders_Manual,'Value'))
+    OTHER_COMMANDS = [OTHER_COMMANDS 1050];
+end
 Plot_Selections = get(handles.list_plot,'Value');
 size_psel = size(Plot_Selections,2);
 if(size_psel>3)
     Plot_Selections(4:size_psel)=[]; %Limit selection to 3 
     set(handles.list_plot,'Value',Plot_Selections);
 end
-List_of_commands = protocol_find_simple_list(M_Selections,Plot_Selections,STATE.OUTCOMMANDS);
+List_of_commands = protocol_find_simple_list(M_Selections,Plot_Selections,[OTHER_COMMANDS STATE.OUTCOMMANDS]);
 Delay_comp = round(str2double(get(handles.txt_delay_comp,'String')));
 
 %Update the state using serial comm and protocol functions
-[STATE, CYCLE] = CORE_LOOP(handles.serConn, handles.captureFile ,STATE,List_of_commands,Delay_comp);
+[STATE, CYCLE] = CORE_LOOP(handles.serialport ,STATE,List_of_commands,Delay_comp);
     
 if(CYCLE) %Only update after a full cycle
     %Get serial refresh rate
@@ -140,7 +165,7 @@ if(CYCLE) %Only update after a full cycle
         set(handles.txt_plot_3,'String',strcat(plot_names{3},':',32,num2str(plot_values(3))));
         
         if(~isempty(M_Selections))
-            List_to_display = protocol_find_simple_list(M_Selections,[],[]);
+            List_to_display = protocol_find_simple_list(M_Selections,[],OTHER_COMMANDS);
         else
             List_to_display = [];
         end
@@ -207,10 +232,18 @@ ylim(handles.axes_joy_right,[-1 1]);
 set(handles.axes_joy_right,'YTickLabel',[]);
 set(handles.axes_joy_right,'XTickLabel',[]);
 
+%Find all com ports
+coms = getAvailableComPort();
+set(handles.txt_COM,'String',coms);
+
 %Load essential GUI data if any
 try
 load('GUI_DATA','GUI_DATA');
-set(handles.txt_COM,'String',GUI_DATA.com);
+idx = find(strcmp([coms], GUI_DATA.com));
+if(isempty(idx) || idx>numel(coms))
+    idx = 1;
+end
+set(handles.txt_COM,'Value',idx);
 set(handles.baudRateText,'String',GUI_DATA.baud);
 catch
 end
@@ -302,13 +335,14 @@ end
 % --- Executes on button press in connectButton.
 function connectButton_Callback(hObject, eventdata, handles)    
 if strcmp(get(hObject,'String'),'Connect') % currently disconnected
-    serPort = get(handles.txt_COM,'String');
+    COM = get(handles.txt_COM,'String');
+    COM = COM(get(handles.txt_COM,'Value'));
     
     %Activate the serial connection
-    [serConn serFile] = serial_setup_open(serPort, str2num(get(handles.baudRateText, 'String')));
-    if(serConn ~= 0)
-        handles.serConn = serConn;
-        handles.captureFile = serFile;
+    serialport = serial_setup_open(COM, str2num(get(handles.baudRateText, 'String')));
+    status = get(serialport,'Status');
+    if(strcmp(status,'open'))
+        handles.serialport = serialport;
         guidata(hObject, handles);
         start(handles.GUItimer);
         set(hObject, 'String','Disconnect')
@@ -319,7 +353,7 @@ if strcmp(get(hObject,'String'),'Connect') % currently disconnected
 else  
     set(hObject, 'String','Connect')
     stop(handles.GUItimer);
-    serial_close(handles.serConn,handles.captureFile);
+    serial_close(handles.serialport);
     set(handles.txt_COM,'Enable','on');
     set(handles.baudRateText,'Enable','on');
     set(handles.txt_delay_comp,'Enable','on');
@@ -344,7 +378,9 @@ else
     OSCILLOSCOPE_close;
     
     %Save essential GUI data
-    GUI_DATA.com = get(handles.txt_COM,'String');
+    COM = get(handles.txt_COM,'String');
+    COM = COM(get(handles.txt_COM,'Value'));
+    GUI_DATA.com = COM;
     GUI_DATA.baud = get(handles.baudRateText,'String');
     save('GUI_DATA','GUI_DATA');
     
@@ -502,16 +538,6 @@ function txt_COM_Callback(hObject, eventdata, handles)
 
 % Hints: get(hObject,'String') returns contents of txt_COM as text
 %        str2double(get(hObject,'String')) returns contents of txt_COM as a double
-persistent VAL
-if(isempty(VAL))
-    VAL = 1;
-end
-try
-    temp_val = round(str2double(get(hObject,'String')));
-    VAL = temp_val;
-catch
-end
-set(hObject,'String',num2str(VAL));
 
 % --- Executes during object creation, after setting all properties.
 function txt_COM_CreateFcn(hObject, eventdata, handles)
@@ -618,4 +644,27 @@ else
     set(handles.chkTailTest,'Enable','on');
     set(handles.chkSlidersToMultiwii,'Enable','on');
     set(handles.chk_manual_rc,'Enable','on');
+end
+
+
+% --- Executes on selection change in txt_COM.
+function popupmenu2_Callback(hObject, eventdata, handles)
+% hObject    handle to txt_COM (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns txt_COM contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from txt_COM
+
+
+% --- Executes during object creation, after setting all properties.
+function popupmenu2_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to txt_COM (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
 end

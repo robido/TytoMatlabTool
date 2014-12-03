@@ -1,7 +1,11 @@
-function byte = serial_get_byte( serConn )
+function byte = serial_get_byte( s )
 %SERIAL_GET_BYTE Summary of this function goes here
 %   Detailed explanation goes here
-byte = fread(serConn, 1, 'uint8');
+if(serial_is_available(s)>0)
+    byte = fread(s,1);
+else
+    byte = [];
+end
 
 end
 

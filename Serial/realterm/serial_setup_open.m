@@ -11,7 +11,7 @@ function [hrealterm, captureFileID] = serial_setup_open( serPort, Baud )
     
     try
         hrealterm.PortOpen=1; %open the comm port
-        pause(1); %Allow initialisation time (too short and the serial port in windows will not respond...)
+        pause(2); %Allow initialisation time (too short and the serial port in windows will not respond...)
 
         if(hrealterm.PortOpen~=0)
             disp(strcat('SERIAL PORT OPENED: COM',serPort));
