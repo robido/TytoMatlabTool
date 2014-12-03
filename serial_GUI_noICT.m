@@ -66,9 +66,12 @@ CHECK_STATUS = get(handles.chk_manual_rc,'Value')...
     + 2*get(handles.chkTrustTest,'Value')...
     + 4*get(handles.chkTailTest,'Value')...
     + 8*get(handles.chk_Sliders_Manual,'Value');
-VALID_RC = 0;
 
 %Custom control
+OTHER_COMMANDS = [];
+VALID_RC = 0;
+TrustMessage = '';
+TailMessage = '';
 switch CHECK_STATUS
   case 1 %Joystick control
     %Get the joystick readings
@@ -88,9 +91,17 @@ switch CHECK_STATUS
     set(handles.right_joy_plot,'XData',ROLL,'YData',PITCH);
     VALID_RC = 1;
   case 2 %Trust test script
-    
+    %[STATE TrustMessage THROTTLE PITCH] = TrustScript(STATE); 
+    YAW = 1020;
+    AUX1 = PITCH;
+    AUX2 = PITCH;
+    AUX3 = PITCH;%Set the requested command IDs
+    OTHER_COMMANDS = [OTHER_COMMANDS 1110 99 1098]; %Add necessary variables (Vbat and test jig data)
   case 4 %Tail test script
-    
+    [STATE TailMessage YAW] = TailScript(STATE);
+    THROTTLE = 1020;
+    VALID_RC = 1;
+    OTHER_COMMANDS = [OTHER_COMMANDS 1110 1098]; %Add necessary variables (Vbat and test jig data)
   case 8 %Hardware sliders control
       try %Maybe data is not ready
         THROTTLE = STATE.R.MSP_VARIABLE_ADJ.pot1 + 1000;
@@ -103,6 +114,8 @@ switch CHECK_STATUS
       catch
       end
 end
+set(handles.txtTrustMessage,'String',TrustMessage);
+set(handles.txtTailMessage,'String',TailMessage);
 
 if(VALID_RC)
     %Make RC command
@@ -121,7 +134,6 @@ end
 %********************
 
 %Get the list of commands to be refreshed
-OTHER_COMMANDS = [];
 M_Selections = get(handles.list_M_data,'Value');
 if(get(handles.chk_Sliders_Manual,'Value'))
     OTHER_COMMANDS = [OTHER_COMMANDS 1050];
@@ -182,7 +194,7 @@ drawnow
 % --- Executes just before serial_GUI_noICT is made visible.
 function serial_GUI_noICT_OpeningFcn(hObject, eventdata, handles, varargin)
 
-GUItimer = timer('TimerFcn',{@GUI_update_timer,hObject},'StartDelay',0.5,'Period',0.001,'ExecutionMode','fixedRate','BusyMode','queue');
+GUItimer = timer('TimerFcn',{@GUI_update_timer,hObject},'StartDelay',0.5,'Period',0.01,'ExecutionMode','fixedSpacing','BusyMode','drop');
 handles.GUItimer = GUItimer;
 
 handles.output = hObject;
