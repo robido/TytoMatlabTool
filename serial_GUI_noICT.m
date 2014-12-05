@@ -51,7 +51,10 @@ if(isempty(last_cycle))
     refresh_delay = 0;
     STATE.OUTCOMMANDS = [];
     STATE.SAVED_RC.YAW = [];
+    STATE.SAVED_RC.PITCH = [];
+    STATE.SAVED_RC.THROTTLE = [];
     STATE.TailMessage = '';
+    STATE.MainMessage = '';
     LAST_CONTROL_CHECKS = 0;
     CYCLE = 0;
 end
@@ -77,7 +80,10 @@ if(LAST_CONTROL_CHECKS ~= CHECK_STATUS)
     STATE.RESET_TEST = 1;
     CYCLE = 0;
     STATE.SAVED_RC.YAW = [];
+    STATE.SAVED_RC.PITCH = [];
+    STATE.SAVED_RC.THROTTLE = [];
     STATE.TailMessage = '';
+    STATE.MainMessage = '';
 end
 LAST_CONTROL_CHECKS = CHECK_STATUS;
 OTHER_COMMANDS = [];
@@ -103,10 +109,17 @@ switch CHECK_STATUS
     set(handles.right_joy_plot,'XData',ROLL,'YData',PITCH);
     VALID_RC = 1;
   case 2 %Trust test script
-    %if(CYCLE)
-        %[STATE TrustMessage THROTTLE PITCH] = TrustScript(STATE); 
-        %set(handles.txtTrustMessage,'String',TrustMessage);
-    %end
+    if(CYCLE)
+        [STATE MainMessage PITCH THROTTLE] = MainMotorScript(STATE);
+        STATE.SAVED_RC.PITCH = PITCH;
+        STATE.SAVED_RC.THROTTLE = THROTTLE;
+        STATE.MainMessage = MainMessage;
+    end
+    if(~isempty(STATE.SAVED_RC.PITCH))
+       PITCH = STATE.SAVED_RC.PITCH;
+       THROTTLE = STATE.SAVED_RC.THROTTLE;
+       VALID_RC = 1;
+    end
     YAW = 1020;
     AUX1 = PITCH;
     AUX2 = PITCH;
@@ -138,6 +151,7 @@ switch CHECK_STATUS
 end
 
 set(handles.txtTailMessage,'String',STATE.TailMessage);
+set(handles.txtTrustMessage,'String',STATE.MainMessage);
 
 if(VALID_RC)
     %Make RC command
