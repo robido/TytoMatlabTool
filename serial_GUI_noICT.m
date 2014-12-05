@@ -44,12 +44,16 @@ end
 % End initialization code - DO NOT EDIT
 
 function GUI_update_timer(~,~,hObject)
-persistent STATE last_cycle refresh_delay averageSerialHz
+persistent STATE last_cycle refresh_delay averageSerialHz LAST_CONTROL_CHECKS CYCLE
 
 if(isempty(last_cycle))
     last_cycle = now;
     refresh_delay = 0;
     STATE.OUTCOMMANDS = [];
+    STATE.SAVED_RC.YAW = [];
+    STATE.TailMessage = '';
+    LAST_CONTROL_CHECKS = 0;
+    CYCLE = 0;
 end
 
 %Get handles structure
@@ -59,19 +63,27 @@ catch
     handles = guidata(hObject);
 end
 
-% ***** Custom control commands ********
-%Initialize rc signals
-[ROLL,PITCH,YAW,THROTTLE,AUX1,AUX2,AUX3,AUX4] = deal(1500);
+% **************************************
+%       Custom control commands      
+% **************************************
+
+%Initialize
+[ROLL,PITCH,YAW,THROTTLE,AUX1,AUX2,AUX3,AUX4] = deal(1500); %Initialize rc signals
 CHECK_STATUS = get(handles.chk_manual_rc,'Value')...
     + 2*get(handles.chkTrustTest,'Value')...
     + 4*get(handles.chkTailTest,'Value')...
     + 8*get(handles.chk_Sliders_Manual,'Value');
-
-%Custom control
+if(LAST_CONTROL_CHECKS ~= CHECK_STATUS)
+    STATE.RESET_TEST = 1;
+    CYCLE = 0;
+    STATE.SAVED_RC.YAW = [];
+    STATE.TailMessage = '';
+end
+LAST_CONTROL_CHECKS = CHECK_STATUS;
 OTHER_COMMANDS = [];
 VALID_RC = 0;
-TrustMessage = '';
-TailMessage = '';
+
+%Custom control
 switch CHECK_STATUS
   case 1 %Joystick control
     %Get the joystick readings
@@ -80,7 +92,7 @@ switch CHECK_STATUS
     YAW = joy(2);
     PITCH = joy(3);
     ROLL = joy(4)-0.5;
-    
+
     ROLL = 1400 + 100*ROLL;
     PITCH = 1500 + 500*PITCH;
     YAW = 1500 + 500*YAW;
@@ -91,16 +103,26 @@ switch CHECK_STATUS
     set(handles.right_joy_plot,'XData',ROLL,'YData',PITCH);
     VALID_RC = 1;
   case 2 %Trust test script
-    %[STATE TrustMessage THROTTLE PITCH] = TrustScript(STATE); 
+    %if(CYCLE)
+        %[STATE TrustMessage THROTTLE PITCH] = TrustScript(STATE); 
+        %set(handles.txtTrustMessage,'String',TrustMessage);
+    %end
     YAW = 1020;
     AUX1 = PITCH;
     AUX2 = PITCH;
     AUX3 = PITCH;%Set the requested command IDs
     OTHER_COMMANDS = [OTHER_COMMANDS 1110 99 1098]; %Add necessary variables (Vbat and test jig data)
   case 4 %Tail test script
-    [STATE TailMessage YAW] = TailScript(STATE);
+    if(CYCLE)
+        [STATE TailMessage YAW] = TailScript(STATE);
+        STATE.SAVED_RC.YAW = YAW;
+        STATE.TailMessage = TailMessage;
+    end
+    if(~isempty(STATE.SAVED_RC.YAW))
+       YAW = STATE.SAVED_RC.YAW;
+       VALID_RC = 1;
+    end
     THROTTLE = 1020;
-    VALID_RC = 1;
     OTHER_COMMANDS = [OTHER_COMMANDS 1110 1098]; %Add necessary variables (Vbat and test jig data)
   case 8 %Hardware sliders control
       try %Maybe data is not ready
@@ -114,8 +136,8 @@ switch CHECK_STATUS
       catch
       end
 end
-set(handles.txtTrustMessage,'String',TrustMessage);
-set(handles.txtTailMessage,'String',TailMessage);
+
+set(handles.txtTailMessage,'String',STATE.TailMessage);
 
 if(VALID_RC)
     %Make RC command
@@ -131,7 +153,10 @@ if(VALID_RC)
 else
     STATE.OUTCOMMANDS = STATE.OUTCOMMANDS(STATE.OUTCOMMANDS~=200); %Remove all commands related to manual control
 end
-%********************
+
+% **************************************
+%       Handles Communication      
+% **************************************
 
 %Get the list of commands to be refreshed
 M_Selections = get(handles.list_M_data,'Value');
@@ -149,7 +174,12 @@ Delay_comp = round(str2double(get(handles.txt_delay_comp,'String')));
 
 %Update the state using serial comm and protocol functions
 [STATE, CYCLE] = CORE_LOOP(handles.serialport ,STATE,List_of_commands,Delay_comp);
-    
+  
+
+% **************************************
+%                Display      
+% **************************************
+
 if(CYCLE) %Only update after a full cycle
     %Get serial refresh rate
     current_time = now;
@@ -176,11 +206,8 @@ if(CYCLE) %Only update after a full cycle
         set(handles.txt_plot_2,'String',strcat(plot_names{2},':',32,num2str(plot_values(2))));
         set(handles.txt_plot_3,'String',strcat(plot_names{3},':',32,num2str(plot_values(3))));
         
-        if(~isempty(M_Selections))
-            List_to_display = protocol_find_simple_list(M_Selections,[],OTHER_COMMANDS);
-        else
-            List_to_display = [];
-        end
+        List_to_display = protocol_find_simple_list(M_Selections,[],OTHER_COMMANDS);
+
         DISP_string = protocol_get_M_display(STATE,List_to_display); 
         if (get(handles.txt_test,'Value')>size(DISP_string,2) )
             set(handles.txt_test,'Value',size(DISP_string,2));
