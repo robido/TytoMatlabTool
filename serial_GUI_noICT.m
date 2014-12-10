@@ -22,7 +22,7 @@ function varargout = serial_GUI_noICT(varargin)
 
 % Edit the above text to modify the response to help serial_GUI_noICT
 
-% Last Modified by GUIDE v2.5 02-Dec-2014 15:59:26
+% Last Modified by GUIDE v2.5 10-Dec-2014 09:12:08
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -55,6 +55,7 @@ if(isempty(last_cycle))
     STATE.SAVED_RC.THROTTLE = [];
     STATE.TailMessage = '';
     STATE.MainMessage = '';
+    STATE.OSCILLOSCOPE_init = 0;
     LAST_CONTROL_CHECKS = 0;
     CYCLE = 0;
 end
@@ -205,8 +206,16 @@ if(CYCLE) %Only update after a full cycle
     STATE.SERIAL.rate = serial_Hz;
 
     %Display on PLOT
-    plot_values = protocol_get_plot_values(STATE,Plot_Selections);
-    OSCILLOSCOPE_update(plot_values);
+    if(~isempty(Plot_Selections))
+        plot_values = protocol_get_plot_values(STATE,Plot_Selections);
+        if(~STATE.OSCILLOSCOPE_init)
+            OSCILLOSCOPE_init;
+            STATE.OSCILLOSCOPE_init = 1;
+        end
+        OSCILLOSCOPE_update(plot_values);
+    else
+        HideScope;
+    end
     
     refresh_delay = refresh_delay + 1;
     if(refresh_delay>0) %This value controls how often the text is refreshed.
@@ -252,8 +261,6 @@ GUItimer = timer('TimerFcn',{@GUI_update_timer,hObject},'StartDelay',0.5,'Period
 handles.GUItimer = GUItimer;
 
 handles.output = hObject;
-
-OSCILLOSCOPE_init
 
 %Fill the heli data box
 protocol_import_DEF(1); %Refresh the imported data
@@ -441,7 +448,10 @@ else
     catch
     end
 
+    try
     OSCILLOSCOPE_close;
+    catch
+    end
     
     %Save essential GUI data
     COM = get(handles.txt_COM,'String');

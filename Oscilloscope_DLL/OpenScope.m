@@ -1,5 +1,5 @@
 function OpenScope
 
 %oscmx(0);
-oscmx(2);
-oscmx(4);
+OscMx(2);
+OscMx(4);

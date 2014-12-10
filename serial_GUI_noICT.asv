@@ -22,7 +22,7 @@ function varargout = serial_GUI_noICT(varargin)
 
 % Edit the above text to modify the response to help serial_GUI_noICT
 
-% Last Modified by GUIDE v2.5 14-Sep-2014 16:30:52
+% Last Modified by GUIDE v2.5 10-Dec-2014 08:58:32
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -44,9 +44,19 @@ end
 % End initialization code - DO NOT EDIT
 
 function GUI_update_timer(~,~,hObject)
-persistent STATE last_cycle
+persistent STATE last_cycle refresh_delay averageSerialHz LAST_CONTROL_CHECKS CYCLE
+try
 if(isempty(last_cycle))
     last_cycle = now;
+    refresh_delay = 0;
+    STATE.OUTCOMMANDS = [];
+    STATE.SAVED_RC.YAW = [];
+    STATE.SAVED_RC.PITCH = [];
+    STATE.SAVED_RC.THROTTLE = [];
+    STATE.TailMessage = '';
+    STATE.MainMessage = '';
+    LAST_CONTROL_CHECKS = 0;
+    CYCLE = 0;
 end
 
 %Get handles structure
@@ -56,50 +66,253 @@ catch
     handles = guidata(hObject);
 end
 
+% **************************************
+%       Custom control commands      
+% **************************************
+
+%Initialize
+[ROLL,PITCH,YAW,THROTTLE,AUX1,AUX2,AUX3,AUX4] = deal(1500); %Initialize rc signals
+CHECK_STATUS = get(handles.chk_manual_rc,'Value')...
+    + 2*get(handles.chkTrustTest,'Value')...
+    + 4*get(handles.chkTailTest,'Value')...
+    + 8*get(handles.chk_Sliders_Manual,'Value');
+if(LAST_CONTROL_CHECKS ~= CHECK_STATUS)
+    STATE.RESET_TEST = 1;
+    CYCLE = 0;
+    STATE.SAVED_RC.YAW = [];
+    STATE.SAVED_RC.PITCH = [];
+    STATE.SAVED_RC.THROTTLE = [];
+    STATE.TailMessage = '';
+    STATE.MainMessage = '';
+end
+LAST_CONTROL_CHECKS = CHECK_STATUS;
+OTHER_COMMANDS = [];
+VALID_RC = 0;
+
+%Custom control
+switch CHECK_STATUS
+  case 1 %Joystick control
+    %Get the joystick readings
+    joy=jst;   
+    THROTTLE = joy(1);
+    YAW = joy(2);
+    PITCH = joy(3);
+    ROLL = joy(4)-0.5;
+
+    ROLL = 1400 + 100*ROLL;
+    PITCH = 1500 + 500*PITCH;
+    YAW = 1500 + 500*YAW;
+    THROTTLE = 1500 + 500*THROTTLE;
+
+    %Display joystick
+    set(handles.left_joy_plot,'XData',YAW,'YData',THROTTLE);
+    set(handles.right_joy_plot,'XData',ROLL,'YData',PITCH);
+    VALID_RC = 1;
+  case 2 %Trust test script
+    if(CYCLE)
+        [STATE MainMessage PITCH THROTTLE] = MainMotorScript(STATE);
+        STATE.SAVED_RC.PITCH = PITCH;
+        STATE.SAVED_RC.THROTTLE = THROTTLE;
+        STATE.MainMessage = MainMessage;
+    end
+    if(~isempty(STATE.SAVED_RC.PITCH))
+       PITCH = STATE.SAVED_RC.PITCH;
+       THROTTLE = STATE.SAVED_RC.THROTTLE;
+       VALID_RC = 1;
+    end
+    YAW = 1020;
+    AUX1 = PITCH;
+    AUX2 = PITCH;
+    AUX3 = PITCH;%Set the requested command IDs
+    OTHER_COMMANDS = [OTHER_COMMANDS 99 1098]; %Add necessary variables (Vbat and test jig data)
+  case 4 %Tail test script
+    if(CYCLE)
+        [STATE TailMessage YAW] = TailScript(STATE);
+        STATE.SAVED_RC.YAW = YAW;
+        STATE.TailMessage = TailMessage;
+    end
+    if(~isempty(STATE.SAVED_RC.YAW))
+       YAW = STATE.SAVED_RC.YAW;
+       VALID_RC = 1;
+    end
+    THROTTLE = 1020;
+    OTHER_COMMANDS = [OTHER_COMMANDS 1098]; %Add necessary variables (Vbat and test jig data)
+  case 8 %Hardware sliders control
+      try %Maybe data is not ready
+        THROTTLE = STATE.R.MSP_VARIABLE_ADJ.pot1 + 1000;
+        YAW = STATE.R.MSP_VARIABLE_ADJ.pot2 + 1000;
+        AUX1 = STATE.R.MSP_VARIABLE_ADJ.pot3 + 1000;
+        AUX2 = STATE.R.MSP_VARIABLE_ADJ.pot4 + 1000;
+        AUX3 = STATE.R.MSP_VARIABLE_ADJ.pot5 + 1000;
+        AUX4 = STATE.R.MSP_VARIABLE_ADJ.pot6 + 1000;
+        VALID_RC = 1;
+      catch
+      end
+end
+
+set(handles.txtTailMessage,'String',STATE.TailMessage);
+set(handles.txtTrustMessage,'String',STATE.MainMessage);
+
+if(VALID_RC)
+    %Make RC command
+    RC_VALS = [ROLL PITCH YAW THROTTLE AUX1 AUX2 AUX3 AUX4];
+    [r,c]=find(RC_VALS>2000);
+    RC_VALS(sub2ind(size(RC_VALS),r,c)) = 2000;
+    [r,c]=find(RC_VALS<1020);
+    RC_VALS(sub2ind(size(RC_VALS),r,c)) = 1020;
+
+    STATE.MSP_SET_RAW_RC = RC_VALS;
+    STATE.OUTCOMMANDS = [STATE.OUTCOMMANDS 200]; %Request this command to be sent.
+    STATE.OUTCOMMANDS = unique(STATE.OUTCOMMANDS);
+else
+    STATE.OUTCOMMANDS = STATE.OUTCOMMANDS(STATE.OUTCOMMANDS~=200); %Remove all commands related to manual control
+end
+
+% **************************************
+%       Handles Communication      
+% **************************************
+
+%Get the list of commands to be refreshed
+M_Selections = get(handles.list_M_data,'Value');
+if(get(handles.chk_Sliders_Manual,'Value'))
+    OTHER_COMMANDS = [OTHER_COMMANDS 1050];
+end
+Plot_Selections = get(handles.list_plot,'Value');
+size_psel = size(Plot_Selections,2);
+if(size_psel>3)
+    Plot_Selections(4:size_psel)=[]; %Limit selection to 3 
+    set(handles.list_plot,'Value',Plot_Selections);
+end
+List_of_commands = protocol_find_simple_list(M_Selections,Plot_Selections,[OTHER_COMMANDS STATE.OUTCOMMANDS]);
+Delay_comp = round(str2double(get(handles.txt_delay_comp,'String')));
+
 %Update the state using serial comm and protocol functions
-[STATE, CYCLE] = CORE_LOOP(handles.serConn,STATE);
-    
+[STATE, CYCLE] = CORE_LOOP(handles.serialport ,STATE,List_of_commands,Delay_comp);
+  
+
+% **************************************
+%                Display      
+% **************************************
+
 if(CYCLE) %Only update after a full cycle
     %Get serial refresh rate
     current_time = now;
     serialTime = current_time-last_cycle;
     last_cycle = current_time;
     serial_delay = 24*3600*serialTime;
-    serial_Hz = round(1/serial_delay);
-    
-    %Get results
-    cycleTime = protocol_get_cycleTime(STATE);
-    debug = protocol_get_debug(STATE); 
-    
-    %Display on graph
-    OSCILLOSCOPE_update([cycleTime debug(1)]);
-    
-    %Display on GUI
-    DISP_string = [];
-    DISP_string = [DISP_string,'serialRate (Hz):',32,num2str(serial_Hz),10,13];
-    DISP_string = [DISP_string,'cycleTime (us):',32,num2str(cycleTime),10,13];
-    DISP_string = [DISP_string,'cycleTime (Hz):',32,num2str(round(1000000/cycleTime)),10,13];
-    DISP_string = [DISP_string,'debug:',32,num2str(debug),10,13];
-    set(handles.txt_test,'String',DISP_string);
-end
+    serial_Hz = 1/serial_delay;
+    averageSerialHz = [averageSerialHz serial_Hz];
+    STATE.SERIAL.rate = serial_Hz;
 
+    %Display on PLOT
+    plot_values = protocol_get_plot_values(STATE,Plot_Selections);
+    OSCILLOSCOPE_update(plot_values);
+    
+    refresh_delay = refresh_delay + 1;
+    if(refresh_delay>0) %This value controls how often the text is refreshed.
+        %Display on GUI
+        set(handles.txt_serial_Hz,'String',num2str(round(mean(averageSerialHz))));
+        averageSerialHz = [];
+        
+        %Display plot text
+        plot_names = protocol_get_plot_names(STATE,Plot_Selections);
+        set(handles.txt_plot_1,'String',strcat(plot_names{1},':',32,num2str(plot_values(1))));
+        set(handles.txt_plot_2,'String',strcat(plot_names{2},':',32,num2str(plot_values(2))));
+        set(handles.txt_plot_3,'String',strcat(plot_names{3},':',32,num2str(plot_values(3))));
+        
+        List_to_display = protocol_find_simple_list(M_Selections,[],OTHER_COMMANDS);
+
+        DISP_string = protocol_get_M_display(STATE,List_to_display); 
+        if (get(handles.txt_test,'Value')>size(DISP_string,2) )
+            set(handles.txt_test,'Value',size(DISP_string,2));
+        end
+        set(handles.txt_test,'String',DISP_string);
+        refresh_delay = 0;
+    end
+end
+drawnow
+catch e
+    e.message
+    e.identifier
+    e.cause
+    for i=1:numel(e.stack)
+        disp('stack');
+        disp(i);
+        disp(e.stack(i,1));
+    end
+    connectButton_Callback(handles.connectButton, '', handles);
+    msgbox('An error occured, please check command window for details');
+    rethrow(e);
+end
+    
 % --- Executes just before serial_GUI_noICT is made visible.
 function serial_GUI_noICT_OpeningFcn(hObject, eventdata, handles, varargin)
 
-%Get the list of available ports
-comPORTS = get_serial_ports();
-
-% serialPorts = instrhwinfo('serial');
-% nPorts = length(serialPorts.SerialPorts);
-set(handles.portList, 'String', comPORTS);
-set(handles.portList, 'Value', 1);   
-
-GUItimer = timer('TimerFcn',{@GUI_update_timer,hObject},'StartDelay',0.5,'Period',0.001,'ExecutionMode','fixedRate','BusyMode',');
+GUItimer = timer('TimerFcn',{@GUI_update_timer,hObject},'StartDelay',0.5,'Period',0.01,'ExecutionMode','fixedSpacing','BusyMode','drop');
 handles.GUItimer = GUItimer;
 
 handles.output = hObject;
 
 OSCILLOSCOPE_init
+
+%Fill the heli data box
+protocol_import_DEF(1); %Refresh the imported data
+M_DATA = protocol_get_list_M_data();
+size_data = size(M_DATA,2);
+content = {};
+counter = 1;
+for i=1:size_data
+    content{i}=M_DATA{i}.NAME;
+end
+set(handles.list_M_data,'String',content);
+
+set(handles.txt_test,'BackgroundColor',get(handles.figure1,'Color'));
+
+%Fill the list to plot
+P_LIST = protocol_get_plot_list();
+size_data = size(P_LIST,2);
+content = {};
+for(i=1:size_data)
+    content{i}=P_LIST{i}.NAME;
+end
+set(handles.list_plot,'String',content);
+
+%Make the joystick plots
+handles.left_joy_plot = plot(handles.axes_joy_left,0,0,'ro','MarkerFaceColor','r');
+xlabel(handles.axes_joy_left,'Yaw');
+ylabel(handles.axes_joy_left,'Throttle');
+xlim(handles.axes_joy_left,'manual');
+xlim(handles.axes_joy_left,[-1 1]);
+ylim(handles.axes_joy_left,'manual');
+ylim(handles.axes_joy_left,[-1 1]);
+set(handles.axes_joy_left,'YTickLabel',[]);
+set(handles.axes_joy_left,'XTickLabel',[]);
+
+handles.right_joy_plot = plot(handles.axes_joy_right,0,0,'ro','MarkerFaceColor','r');
+xlabel(handles.axes_joy_right,'Roll');
+ylabel(handles.axes_joy_right,'Pitch');
+xlim(handles.axes_joy_right,'manual');
+xlim(handles.axes_joy_right,[-1 1]);
+ylim(handles.axes_joy_right,'manual');
+ylim(handles.axes_joy_right,[-1 1]);
+set(handles.axes_joy_right,'YTickLabel',[]);
+set(handles.axes_joy_right,'XTickLabel',[]);
+
+%Find all com ports
+coms = getAvailableComPort();
+set(handles.txt_COM,'String',coms);
+
+%Load essential GUI data if any
+try
+load('GUI_DATA','GUI_DATA');
+idx = find(strcmp([coms], GUI_DATA.com));
+if(isempty(idx) || idx>numel(coms))
+    idx = 1;
+end
+set(handles.txt_COM,'Value',idx);
+set(handles.baudRateText,'String',GUI_DATA.baud);
+catch
+end
 
 % Update handles structure
 guidata(hObject, handles);
@@ -188,22 +401,28 @@ end
 % --- Executes on button press in connectButton.
 function connectButton_Callback(hObject, eventdata, handles)    
 if strcmp(get(hObject,'String'),'Connect') % currently disconnected
-    serPortn = get(handles.portList, 'Value');
-    serList = get(handles.portList,'String');
-    serPort = serList{serPortn};
+    COM = get(handles.txt_COM,'String');
+    COM = COM(get(handles.txt_COM,'Value'));
     
     %Activate the serial connection
-    serConn = serial_setup_open(serPort, str2num(get(handles.baudRateText, 'String')));
-    if(serConn ~= 0)
-        handles.serConn = serConn;
+    serialport = serial_setup_open(COM, str2num(get(handles.baudRateText, 'String')));
+    status = get(serialport,'Status');
+    if(strcmp(status,'open'))
+        handles.serialport = serialport;
         guidata(hObject, handles);
         start(handles.GUItimer);
         set(hObject, 'String','Disconnect')
+        set(handles.txt_COM,'Enable','off');
+        set(handles.baudRateText,'Enable','off');
+        set(handles.txt_delay_comp,'Enable','off');
     end
 else  
     set(hObject, 'String','Connect')
     stop(handles.GUItimer);
-    serial_close(handles.serConn);
+    serial_close(handles.serialport);
+    set(handles.txt_COM,'Enable','on');
+    set(handles.baudRateText,'Enable','on');
+    set(handles.txt_delay_comp,'Enable','on');
 end
 guidata(hObject, handles);
 
@@ -212,19 +431,29 @@ function figure1_CloseRequestFcn(hObject, eventdata, handles)
 % hObject    handle to figure1 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-if isfield(handles, 'serConn')
-    serial_close(handles.serConn);
+if strcmp(get(handles.connectButton,'String'),'Disconnect')
+    msgbox('Please disconnect first.');
+else
+    %Stop what can be stopped
+    stop(handles.GUItimer);
+    try
+    serial_close(handles.serConn,handles.captureFile);
+    catch
+    end
+
+    OSCILLOSCOPE_close;
+    
+    %Save essential GUI data
+    COM = get(handles.txt_COM,'String');
+    COM = COM(get(handles.txt_COM,'Value'));
+    GUI_DATA.com = COM;
+    GUI_DATA.baud = get(handles.baudRateText,'String');
+    save('GUI_DATA','GUI_DATA');
+    
+    % Hint: delete(hObject) closes the figure
+    delete(hObject);
 end
 
-% Hint: delete(hObject) closes the figure
-delete(hObject);
-
-try
-stop(handles.GUItimer);
-catch
-end
-
-OSCILLOSCOPE_close
 
 % --- Executes during object creation, after setting all properties.
 function figure1_CreateFcn(hObject, eventdata, handles)
@@ -232,3 +461,298 @@ function figure1_CreateFcn(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 addpath(genpath(pwd));
+
+
+% --- Executes on selection change in list_plot.
+function list_plot_Callback(hObject, eventdata, handles)
+% hObject    handle to list_plot (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns list_plot contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from list_plot
+
+
+% --- Executes during object creation, after setting all properties.
+function list_plot_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to list_plot (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: listbox controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on selection change in list_M_data.
+function list_M_data_Callback(hObject, eventdata, handles)
+% hObject    handle to list_M_data (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns list_M_data contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from list_M_data
+
+
+% --- Executes during object creation, after setting all properties.
+function list_M_data_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to list_M_data (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: listbox controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function txt_delay_comp_Callback(hObject, eventdata, handles)
+% hObject    handle to txt_delay_comp (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of txt_delay_comp as text
+%        str2double(get(hObject,'String')) returns contents of txt_delay_comp as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function txt_delay_comp_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to txt_delay_comp (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in chk_manual_rc.
+function chk_manual_rc_Callback(hObject, eventdata, handles)
+% hObject    handle to chk_manual_rc (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of chk_manual_rc
+if(get(hObject,'Value'))
+    set(handles.chkTrustTest,'Value',0);
+    set(handles.chkTailTest,'Value',0);
+    set(handles.chkSlidersToMultiwii,'Value',0);
+    set(handles.chk_Sliders_Manual,'Value',0);
+    set(handles.chkTrustTest,'Enable','off');
+    set(handles.chkTailTest,'Enable','off');
+    set(handles.chkSlidersToMultiwii,'Enable','off');
+    set(handles.chk_Sliders_Manual,'Enable','off');
+else
+    set(handles.chkTrustTest,'Enable','on');
+    set(handles.chkTailTest,'Enable','on');
+    set(handles.chkSlidersToMultiwii,'Enable','on');
+    set(handles.chk_Sliders_Manual,'Enable','on');
+end
+
+% --- Executes on button press in right_joy_pos.
+function right_joy_pos_Callback(hObject, eventdata, handles)
+% hObject    handle to right_joy_pos (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of right_joy_pos
+
+
+% --- Executes on button press in left_joy_pos.
+function left_joy_pos_Callback(hObject, eventdata, handles)
+% hObject    handle to left_joy_pos (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of left_joy_pos
+
+
+
+function txt_test_Callback(hObject, eventdata, handles)
+% hObject    handle to txt_test (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of txt_test as text
+%        str2double(get(hObject,'String')) returns contents of txt_test as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function txt_test_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to txt_test (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function txt_COM_Callback(hObject, eventdata, handles)
+% hObject    handle to txt_COM (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of txt_COM as text
+%        str2double(get(hObject,'String')) returns contents of txt_COM as a double
+
+% --- Executes during object creation, after setting all properties.
+function txt_COM_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to txt_COM (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in chkTrustTest.
+function chkTrustTest_Callback(hObject, eventdata, handles)
+% hObject    handle to chkTrustTest (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of chkTrustTest
+if(get(hObject,'Value'))
+    set(handles.chk_manual_rc,'Value',0);
+    set(handles.chkTailTest,'Value',0);
+    set(handles.chkSlidersToMultiwii,'Value',0);
+    set(handles.chk_Sliders_Manual,'Value',0);
+    set(handles.chk_manual_rc,'Enable','off');
+    set(handles.chkTailTest,'Enable','off');
+    set(handles.chkSlidersToMultiwii,'Enable','off');
+    set(handles.chk_Sliders_Manual,'Enable','off');
+else
+    set(handles.chk_manual_rc,'Enable','on');
+    set(handles.chkTailTest,'Enable','on');
+    set(handles.chkSlidersToMultiwii,'Enable','on');
+    set(handles.chk_Sliders_Manual,'Enable','on');
+end
+
+% --- Executes on button press in chkTailTest.
+function chkTailTest_Callback(hObject, eventdata, handles)
+% hObject    handle to chkTailTest (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of chkTailTest
+if(get(hObject,'Value'))
+    set(handles.chk_manual_rc,'Value',0);
+    set(handles.chkTrustTest,'Value',0);
+    set(handles.chkSlidersToMultiwii,'Value',0);
+    set(handles.chk_Sliders_Manual,'Value',0);
+    set(handles.chk_manual_rc,'Enable','off');
+    set(handles.chkTrustTest,'Enable','off');
+    set(handles.chkSlidersToMultiwii,'Enable','off');
+    set(handles.chk_Sliders_Manual,'Enable','off');
+else
+    set(handles.chk_manual_rc,'Enable','on');
+    set(handles.chkTrustTest,'Enable','on');
+    set(handles.chkSlidersToMultiwii,'Enable','on');
+    set(handles.chk_Sliders_Manual,'Enable','on');
+end
+
+
+% --- Executes on button press in chkSlidersToMultiwii.
+function chkSlidersToMultiwii_Callback(hObject, eventdata, handles)
+% hObject    handle to chkSlidersToMultiwii (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of chkSlidersToMultiwii
+if(get(hObject,'Value'))
+    set(handles.chkTrustTest,'Value',0);
+    set(handles.chkTailTest,'Value',0);
+    set(handles.chk_manual_rc,'Value',0);
+    set(handles.chk_Sliders_Manual,'Value',0);
+    set(handles.chkTrustTest,'Enable','off');
+    set(handles.chkTailTest,'Enable','off');
+    set(handles.chk_manual_rc,'Enable','off');
+    set(handles.chk_Sliders_Manual,'Enable','off');
+else
+    set(handles.chkTrustTest,'Enable','on');
+    set(handles.chkTailTest,'Enable','on');
+    set(handles.chk_manual_rc,'Enable','on');
+    set(handles.chk_Sliders_Manual,'Enable','on');
+end
+
+% --- Executes on button press in chk_Sliders_Manual.
+function chk_Sliders_Manual_Callback(hObject, eventdata, handles)
+% hObject    handle to chk_Sliders_Manual (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of chk_Sliders_Manual
+%chk_manual_rc
+if(get(hObject,'Value'))
+    set(handles.chkTrustTest,'Value',0);
+    set(handles.chkTailTest,'Value',0);
+    set(handles.chkSlidersToMultiwii,'Value',0);
+    set(handles.chk_manual_rc,'Value',0);
+    set(handles.chkTrustTest,'Enable','off');
+    set(handles.chkTailTest,'Enable','off');
+    set(handles.chkSlidersToMultiwii,'Enable','off');
+    set(handles.chk_manual_rc,'Enable','off');
+else
+    set(handles.chkTrustTest,'Enable','on');
+    set(handles.chkTailTest,'Enable','on');
+    set(handles.chkSlidersToMultiwii,'Enable','on');
+    set(handles.chk_manual_rc,'Enable','on');
+end
+
+
+% --- Executes on selection change in txt_COM.
+function popupmenu2_Callback(hObject, eventdata, handles)
+% hObject    handle to txt_COM (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns txt_COM contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from txt_COM
+
+
+% --- Executes during object creation, after setting all properties.
+function popupmenu2_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to txt_COM (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in pushbutton4.
+function pushbutton4_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton4 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+%SHOW
+
+% --- Executes on button press in pushbutton5.
+function pushbutton5_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton5 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+%HIDE
+
+% --- Executes on button press in pushbutton6.
+function pushbutton6_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton6 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+%UPDATE
