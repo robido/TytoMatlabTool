@@ -38,6 +38,7 @@ end
 %Default response
 DEFAULT_THROTTLE = 1020;
 DEFAULT_PITCH = 1500;
+MIN_PITCH = 1020; %Reversed, ie lower pitch = more trust
 
 persistent STEP counter DATA MainMessage index controller last_time FILE CURRENT_TEST;
 if isempty(STEP) || STATE.RESET_TEST
@@ -99,17 +100,19 @@ PITCH = DEFAULT_PITCH;
 
 %Extract parameters
 ALL_PARAMS = 0;
-try
-    VBAT = STATE.R.MSP_TEST_JIG_DATA.Vbat;
-    TORQUE = STATE.R.MSP_TEST_JIG_DATA.Torque_sensor;
-    CURRENT = STATE.R.MSP_TEST_JIG_DATA.Current;
-    RPM = STATE.M.MSP_TEST_JIG_DATA.MainMotor_rpm;
-    TRUST = STATE.R.MSP_TEST_JIG_DATA.Trust_scale;
-    T_MOTOR = STATE.R.MSP_TEST_JIG_DATA.MainMotor_temp;
-    T_AMBIENT = STATE.R.MSP_TEST_JIG_DATA.Room_temp;
-    ALL_PARAMS = 1;
-catch
-    MainMessage = 'Waiting for hardware to respond...';
+if(STEP ~= -1)
+    try
+        VBAT = STATE.R.MSP_TEST_JIG_DATA.Vbat;
+        TORQUE = STATE.R.MSP_TEST_JIG_DATA.Torque_sensor;
+        CURRENT = STATE.R.MSP_TEST_JIG_DATA.Current;
+        RPM = STATE.M.MSP_TEST_JIG_DATA.MainMotor_rpm;
+        TRUST = STATE.R.MSP_TEST_JIG_DATA.Trust_scale;
+        T_MOTOR = STATE.R.MSP_TEST_JIG_DATA.MainMotor_temp;
+        T_AMBIENT = STATE.R.MSP_TEST_JIG_DATA.Room_temp;
+        ALL_PARAMS = 1;
+    catch
+        MainMessage = 'Waiting for hardware to respond...';
+    end
 end
 
 if(ALL_PARAMS && STEP>0)
@@ -205,7 +208,7 @@ if(ALL_PARAMS && STEP>0)
             end
             
             %Check current sensor during spool up
-            if(time_since_start>2 && time_since_start<5 && CURRENT<200)
+            if(time_since_start>3 && time_since_start<5 && CURRENT<100)
                 TEST_FINISHED = 'CURRENT SENSOR PROBLEM';
                 MainMessage = strcat('TEST FAILED: Current sensor seems incorrect.');
                 STEP = -1;
@@ -244,21 +247,21 @@ if(ALL_PARAMS && STEP>0)
                     end
 
                     %First target ballpark values to be in the correct range            
-                    if(RPM<(targetRPM-RPM_TOLERANCE))
-                        MainMessage = [MainMessage 'Spooling up to ', num2str(targetRPM) ,'rpm.'];
-                        controller.throttle = controller.throttle + dt*SPOOL_UP_RATE;
+                    if(TRUST>(targetTrust+TRUST_TOLERANCE*2))
+                        MainMessage = [MainMessage 'Decreasing pitch towards ', num2str(targetTrust) ,'g trust.'];
+                        controller.pitch = controller.pitch + dt*PITCH_RATE;
                     else
                         if(RPM>(targetRPM+RPM_TOLERANCE*2))
                             MainMessage = [MainMessage 'Slowing down to ', num2str(targetRPM) ,'rpm.'];
                             controller.throttle = controller.throttle - dt*SPOOL_UP_RATE;
                         else
-                            if(TRUST<(targetTrust-TRUST_TOLERANCE*2))
-                                MainMessage = [MainMessage 'Increasing pitch towards ', num2str(targetTrust) ,'g trust.'];
-                                controller.pitch = controller.pitch - dt*PITCH_RATE;
+                            if(RPM<(targetRPM-RPM_TOLERANCE))
+                                MainMessage = [MainMessage 'Spooling up to ', num2str(targetRPM) ,'rpm.'];
+                                controller.throttle = controller.throttle + dt*SPOOL_UP_RATE;
                             else
-                                if(TRUST>(targetTrust+TRUST_TOLERANCE*2))
-                                    MainMessage = [MainMessage 'Decreasing pitch towards ', num2str(targetTrust) ,'g trust.'];
-                                    controller.pitch = controller.pitch + dt*PITCH_RATE;
+                                if(TRUST<(targetTrust-TRUST_TOLERANCE*2))
+                                    MainMessage = [MainMessage 'Increasing pitch towards ', num2str(targetTrust) ,'g trust.'];
+                                    controller.pitch = controller.pitch - dt*PITCH_RATE;
                                 else
                                     %Adjust both simultaneously
                                     MainMessage = [MainMessage 'Targeting ', num2str(targetRPM) ,'rpm and',32,num2str(targetTrust),'g trust.'];
@@ -343,6 +346,10 @@ if(ALL_PARAMS && STEP>0)
                 %Output
                 THROTTLE = round(controller.throttle);
                 PITCH = round(controller.pitch);
+                
+                if(PITCH <= MIN_PITCH)
+                    TEST_FINISHED = 'PITCH MAXED OUT';
+                end
             end
             
             %Save data and decide what to do next
