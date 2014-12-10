@@ -45,7 +45,7 @@ end
 
 function GUI_update_timer(~,~,hObject)
 persistent STATE last_cycle refresh_delay averageSerialHz LAST_CONTROL_CHECKS CYCLE
-
+try
 if(isempty(last_cycle))
     last_cycle = now;
     refresh_delay = 0;
@@ -124,7 +124,7 @@ switch CHECK_STATUS
     AUX1 = PITCH;
     AUX2 = PITCH;
     AUX3 = PITCH;%Set the requested command IDs
-    OTHER_COMMANDS = [OTHER_COMMANDS 1110 99 1098]; %Add necessary variables (Vbat and test jig data)
+    OTHER_COMMANDS = [OTHER_COMMANDS 99 1098]; %Add necessary variables (Vbat and test jig data)
   case 4 %Tail test script
     if(CYCLE)
         [STATE TailMessage YAW] = TailScript(STATE);
@@ -136,7 +136,7 @@ switch CHECK_STATUS
        VALID_RC = 1;
     end
     THROTTLE = 1020;
-    OTHER_COMMANDS = [OTHER_COMMANDS 1110 1098]; %Add necessary variables (Vbat and test jig data)
+    OTHER_COMMANDS = [OTHER_COMMANDS 1098]; %Add necessary variables (Vbat and test jig data)
   case 8 %Hardware sliders control
       try %Maybe data is not ready
         THROTTLE = STATE.R.MSP_VARIABLE_ADJ.pot1 + 1000;
@@ -158,8 +158,8 @@ if(VALID_RC)
     RC_VALS = [ROLL PITCH YAW THROTTLE AUX1 AUX2 AUX3 AUX4];
     [r,c]=find(RC_VALS>2000);
     RC_VALS(sub2ind(size(RC_VALS),r,c)) = 2000;
-    [r,c]=find(RC_VALS<1000);
-    RC_VALS(sub2ind(size(RC_VALS),r,c)) = 1000;
+    [r,c]=find(RC_VALS<1020);
+    RC_VALS(sub2ind(size(RC_VALS),r,c)) = 1020;
 
     STATE.MSP_SET_RAW_RC = RC_VALS;
     STATE.OUTCOMMANDS = [STATE.OUTCOMMANDS 200]; %Request this command to be sent.
@@ -231,7 +231,20 @@ if(CYCLE) %Only update after a full cycle
     end
 end
 drawnow
-
+catch e
+    e.message
+    e.identifier
+    e.cause
+    for i=1:numel(e.stack)
+        disp('stack');
+        disp(i);
+        disp(e.stack(i,1));
+    end
+    connectButton_Callback(handles.connectButton, '', handles);
+    msgbox('An error occured, please check command window for details');
+    rethrow(e);
+end
+    
 % --- Executes just before serial_GUI_noICT is made visible.
 function serial_GUI_noICT_OpeningFcn(hObject, eventdata, handles, varargin)
 

@@ -27,7 +27,7 @@ YAW = YAW_MIN; %Default response
 %Extract parameters
 ALL_PARAMS = 0;
 try
-    VBAT = STATE.R.MSP_ANALOG.vbat;
+    VBAT = STATE.R.MSP_TEST_JIG_DATA.Vbat;
     TORQUE = STATE.R.MSP_TEST_JIG_DATA.Torque_sensor;
     CURRENT = STATE.R.MSP_TEST_JIG_DATA.Current;
     ALL_PARAMS = 1;
