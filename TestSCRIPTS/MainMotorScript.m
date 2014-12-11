@@ -8,7 +8,7 @@ MAX_RPM = 6000; %Hard limit to protect system
 
 %Temperature parameters
 SETTLE_TEMPERATURE = 0; %Activate if the test should settle in temp as well
-COOLING_THROTTLE = 1115; %Turning the motor at low power cools the motor faster due to convection
+COOLING_THROTTLE = 1125; %Turning the motor at low power cools the motor faster due to convection
 MAX_INIT_TEMP_DELTA = 20; %Motor must be within this temperature relative to ambient before test
 TEMP_TOLERANCE = 1; %Steadystate difference (to consider test valid)
 OVERHEAT = 60; %Not too high as the motor has tendency to increase more after stopped

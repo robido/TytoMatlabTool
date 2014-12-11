@@ -56,6 +56,7 @@ if(isempty(last_cycle))
     STATE.TailMessage = '';
     STATE.MainMessage = '';
     STATE.OSCILLOSCOPE_init = 0;
+    STATE.OSCILLOSCOPE_visible = 0;
     LAST_CONTROL_CHECKS = 0;
     CYCLE = 0;
 end
@@ -211,10 +212,18 @@ if(CYCLE) %Only update after a full cycle
         if(~STATE.OSCILLOSCOPE_init)
             OSCILLOSCOPE_init;
             STATE.OSCILLOSCOPE_init = 1;
+            STATE.OSCILLOSCOPE_visible = 1;
+        end
+        if(~STATE.OSCILLOSCOPE_visible)
+            OpenScope;
+            STATE.OSCILLOSCOPE_visible = 1;
         end
         OSCILLOSCOPE_update(plot_values);
     else
-        HideScope;
+        if(STATE.OSCILLOSCOPE_visible)
+            HideScope;
+            STATE.OSCILLOSCOPE_visible = 0;
+        end
     end
     
     refresh_delay = refresh_delay + 1;
@@ -225,9 +234,15 @@ if(CYCLE) %Only update after a full cycle
         
         %Display plot text
         plot_names = protocol_get_plot_names(STATE,Plot_Selections);
-        set(handles.txt_plot_1,'String',strcat(plot_names{1},':',32,num2str(plot_values(1))));
-        set(handles.txt_plot_2,'String',strcat(plot_names{2},':',32,num2str(plot_values(2))));
-        set(handles.txt_plot_3,'String',strcat(plot_names{3},':',32,num2str(plot_values(3))));
+        if(isempty(Plot_Selections))
+            set(handles.txt_plot_1,'String',plot_names{1});
+            set(handles.txt_plot_2,'String',plot_names{2});
+            set(handles.txt_plot_3,'String',plot_names{3});
+        else
+            set(handles.txt_plot_1,'String',strcat(plot_names{1},':',32,num2str(plot_values(1))));
+            set(handles.txt_plot_2,'String',strcat(plot_names{2},':',32,num2str(plot_values(2))));
+            set(handles.txt_plot_3,'String',strcat(plot_names{3},':',32,num2str(plot_values(3))));
+        end
         
         List_to_display = protocol_find_simple_list(M_Selections,[],OTHER_COMMANDS);
 
@@ -256,6 +271,8 @@ end
     
 % --- Executes just before serial_GUI_noICT is made visible.
 function serial_GUI_noICT_OpeningFcn(hObject, eventdata, handles, varargin)
+
+clc;
 
 GUItimer = timer('TimerFcn',{@GUI_update_timer,hObject},'StartDelay',0.5,'Period',0.01,'ExecutionMode','fixedSpacing','BusyMode','drop');
 handles.GUItimer = GUItimer;

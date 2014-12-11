@@ -1,4 +1,4 @@
-OsCmx(3);
+OscMx(3);
 %oscmx(-1);
-clear oscmx
+clear OscMx
 
