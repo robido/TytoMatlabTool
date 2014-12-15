@@ -39,6 +39,7 @@ end
 DEFAULT_THROTTLE = 1020;
 DEFAULT_PITCH = 1500;
 MIN_PITCH = 1020; %Reversed, ie lower pitch = more trust
+MAX_PITCH = 2000;
 
 persistent STEP counter DATA MainMessage index controller last_time FILE CURRENT_TEST;
 if isempty(STEP) || STATE.RESET_TEST
@@ -325,16 +326,16 @@ if(ALL_PARAMS && STEP>0)
                         MainMessage = [strcat('Recording data',32,num2str(round(100*total_data/STEP_DURATION)),'%...') 10 13 MainMessage];
                     end
                 else
-                    DATA.ResultArray.Time = [];
-                    DATA.ResultArray.RPM = [];
-                    DATA.ResultArray.Trust = [];
-                    DATA.ResultArray.Torque = [];
-                    DATA.ResultArray.Vbat = [];
-                    DATA.ResultArray.Current = [];
-                    DATA.ResultArray.AmbientTemp = [];
-                    DATA.ResultArray.MotorTemp = [];
-                    DATA.ResultArray.THROTTLE = [];
-                    DATA.ResultArray.PITCH = [];
+                    DATA.ResultArray.Time = current_time;
+                    DATA.ResultArray.RPM = RPM;
+                    DATA.ResultArray.Trust = TRUST;
+                    DATA.ResultArray.Torque = TORQUE;
+                    DATA.ResultArray.Vbat = VBAT;
+                    DATA.ResultArray.Current = CURRENT;
+                    DATA.ResultArray.AmbientTemp = T_AMBIENT;
+                    DATA.ResultArray.MotorTemp = T_MOTOR;
+                    DATA.ResultArray.THROTTLE = round(controller.throttle);
+                    DATA.ResultArray.PITCH = round(controller.pitch);
                 end
 
                 if(time_since_start>TIME_LIMIT)
@@ -347,7 +348,7 @@ if(ALL_PARAMS && STEP>0)
                 THROTTLE = round(controller.throttle);
                 PITCH = round(controller.pitch);
                 
-                if(PITCH <= MIN_PITCH)
+                if(PITCH <= MIN_PITCH || PITCH >= MAX_PITCH)
                     TEST_FINISHED = 'PITCH MAXED OUT';
                 end
             end

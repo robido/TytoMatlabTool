@@ -24,9 +24,11 @@ else
         values = getfield(DATA,FIELDs{i});
         from = round(numel(values)/3);
         to = numel(values);
-        try
-        values = values(1,from:to); %Trim the first 1/3 of data as may not be fully stable.
-        catch
+        if(numel(values)>20)
+            try
+                values = values(1,from:to); %Trim the first 1/3 of data as may not be fully stable.
+            catch
+            end
         end
         value = mean(values);
         A{real_index} = sprintf('%s%f,', A{real_index}, value) ;
