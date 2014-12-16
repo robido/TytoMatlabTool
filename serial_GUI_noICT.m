@@ -22,7 +22,7 @@ function varargout = serial_GUI_noICT(varargin)
 
 % Edit the above text to modify the response to help serial_GUI_noICT
 
-% Last Modified by GUIDE v2.5 10-Dec-2014 09:12:08
+% Last Modified by GUIDE v2.5 16-Dec-2014 09:22:15
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -77,7 +77,8 @@ end
 CHECK_STATUS = get(handles.chk_manual_rc,'Value')...
     + 2*get(handles.chkTrustTest,'Value')...
     + 4*get(handles.chkTailTest,'Value')...
-    + 8*get(handles.chk_Sliders_Manual,'Value');
+    + 8*get(handles.chk_Sliders_Manual,'Value')...
+    + 16*get(handles.chk_get_kv,'Value');
 if(LAST_CONTROL_CHECKS ~= CHECK_STATUS)
     STATE.RESET_TEST = 1;
     CYCLE = 0;
@@ -150,6 +151,22 @@ switch CHECK_STATUS
         VALID_RC = 1;
       catch
       end
+  case 16 %Get main motor Kv
+    if(CYCLE)
+        [STATE MainMessage THROTTLE] = MainMotorKv(STATE);
+        STATE.SAVED_RC.THROTTLE = THROTTLE;
+        STATE.MainMessage = MainMessage;
+    end
+    if(~isempty(STATE.SAVED_RC.THROTTLE))
+       THROTTLE = STATE.SAVED_RC.THROTTLE;
+       VALID_RC = 1;
+    end
+    YAW = 1020;
+    PITCH = 1500;
+    AUX1 = PITCH;
+    AUX2 = PITCH;
+    AUX3 = PITCH;%Set the requested command IDs
+    OTHER_COMMANDS = [OTHER_COMMANDS 99 1098]; %Add necessary variables (Vbat and test jig data)
 end
 
 set(handles.txtTailMessage,'String',STATE.TailMessage);
@@ -571,15 +588,18 @@ if(get(hObject,'Value'))
     set(handles.chkTailTest,'Value',0);
     set(handles.chkSlidersToMultiwii,'Value',0);
     set(handles.chk_Sliders_Manual,'Value',0);
+    set(handles.chk_get_kv,'Value',0);
     set(handles.chkTrustTest,'Enable','off');
     set(handles.chkTailTest,'Enable','off');
     set(handles.chkSlidersToMultiwii,'Enable','off');
     set(handles.chk_Sliders_Manual,'Enable','off');
+    set(handles.chk_get_kv,'Enable','off');
 else
     set(handles.chkTrustTest,'Enable','on');
     set(handles.chkTailTest,'Enable','on');
     set(handles.chkSlidersToMultiwii,'Enable','on');
     set(handles.chk_Sliders_Manual,'Enable','on');
+    set(handles.chk_get_kv,'Enable','on');
 end
 
 % --- Executes on button press in right_joy_pos.
@@ -657,15 +677,18 @@ if(get(hObject,'Value'))
     set(handles.chkTailTest,'Value',0);
     set(handles.chkSlidersToMultiwii,'Value',0);
     set(handles.chk_Sliders_Manual,'Value',0);
+    set(handles.chk_get_kv,'Value',0);
     set(handles.chk_manual_rc,'Enable','off');
     set(handles.chkTailTest,'Enable','off');
     set(handles.chkSlidersToMultiwii,'Enable','off');
     set(handles.chk_Sliders_Manual,'Enable','off');
+    set(handles.chk_get_kv,'Enable','off');
 else
     set(handles.chk_manual_rc,'Enable','on');
     set(handles.chkTailTest,'Enable','on');
     set(handles.chkSlidersToMultiwii,'Enable','on');
     set(handles.chk_Sliders_Manual,'Enable','on');
+    set(handles.chk_get_kv,'Enable','on');
 end
 
 % --- Executes on button press in chkTailTest.
@@ -680,15 +703,18 @@ if(get(hObject,'Value'))
     set(handles.chkTrustTest,'Value',0);
     set(handles.chkSlidersToMultiwii,'Value',0);
     set(handles.chk_Sliders_Manual,'Value',0);
+    set(handles.chk_get_kv,'Value',0);
     set(handles.chk_manual_rc,'Enable','off');
     set(handles.chkTrustTest,'Enable','off');
     set(handles.chkSlidersToMultiwii,'Enable','off');
     set(handles.chk_Sliders_Manual,'Enable','off');
+    set(handles.chk_get_kv,'Enable','off');
 else
     set(handles.chk_manual_rc,'Enable','on');
     set(handles.chkTrustTest,'Enable','on');
     set(handles.chkSlidersToMultiwii,'Enable','on');
     set(handles.chk_Sliders_Manual,'Enable','on');
+    set(handles.chk_get_kv,'Enable','on');
 end
 
 
@@ -704,15 +730,18 @@ if(get(hObject,'Value'))
     set(handles.chkTailTest,'Value',0);
     set(handles.chk_manual_rc,'Value',0);
     set(handles.chk_Sliders_Manual,'Value',0);
+    set(handles.chk_get_kv,'Value',0);
     set(handles.chkTrustTest,'Enable','off');
     set(handles.chkTailTest,'Enable','off');
     set(handles.chk_manual_rc,'Enable','off');
     set(handles.chk_Sliders_Manual,'Enable','off');
+    set(handles.chk_get_kv,'Enable','off');
 else
     set(handles.chkTrustTest,'Enable','on');
     set(handles.chkTailTest,'Enable','on');
     set(handles.chk_manual_rc,'Enable','on');
     set(handles.chk_Sliders_Manual,'Enable','on');
+    set(handles.chk_get_kv,'Enable','on');
 end
 
 % --- Executes on button press in chk_Sliders_Manual.
@@ -728,15 +757,18 @@ if(get(hObject,'Value'))
     set(handles.chkTailTest,'Value',0);
     set(handles.chkSlidersToMultiwii,'Value',0);
     set(handles.chk_manual_rc,'Value',0);
+    set(handles.chk_get_kv,'Value',0);
     set(handles.chkTrustTest,'Enable','off');
     set(handles.chkTailTest,'Enable','off');
     set(handles.chkSlidersToMultiwii,'Enable','off');
     set(handles.chk_manual_rc,'Enable','off');
+    set(handles.chk_get_kv,'Enable','off');
 else
     set(handles.chkTrustTest,'Enable','on');
     set(handles.chkTailTest,'Enable','on');
     set(handles.chkSlidersToMultiwii,'Enable','on');
     set(handles.chk_manual_rc,'Enable','on');
+    set(handles.chk_get_kv,'Enable','on');
 end
 
 
@@ -760,4 +792,31 @@ function popupmenu2_CreateFcn(hObject, eventdata, handles)
 %       See ISPC and COMPUTER.
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in chk_get_kv.
+function chk_get_kv_Callback(hObject, eventdata, handles)
+% hObject    handle to chk_get_kv (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of chk_get_kv
+if(get(hObject,'Value'))
+    set(handles.chkTrustTest,'Value',0);
+    set(handles.chkTailTest,'Value',0);
+    set(handles.chkSlidersToMultiwii,'Value',0);
+    set(handles.chk_Sliders_Manual,'Value',0);
+    set(handles.chk_manual_rc,'Value',0);
+    set(handles.chkTrustTest,'Enable','off');
+    set(handles.chkTailTest,'Enable','off');
+    set(handles.chkSlidersToMultiwii,'Enable','off');
+    set(handles.chk_Sliders_Manual,'Enable','off');
+    set(handles.chk_manual_rc,'Enable','off');
+else
+    set(handles.chkTrustTest,'Enable','on');
+    set(handles.chkTailTest,'Enable','on');
+    set(handles.chkSlidersToMultiwii,'Enable','on');
+    set(handles.chk_Sliders_Manual,'Enable','on');
+    set(handles.chk_manual_rc,'Enable','on');
 end
