@@ -12,12 +12,14 @@ FULL_THROTTLE = 2000;
 TOTAL_TIME = CALIB_TIME + SETTLE_TIME + STEP_DURATION; 
 CURRENT_TIME = 0;
 
-persistent STEP counter DATA KvMessage
+persistent STEP counter DATA KvMessage WINDING_RESISTANCE
 if isempty(STEP) || STATE.RESET_TEST
     STEP = 1;
     counter = 0;
     STATE.RESET_TEST = 0;
     KvMessage = '';
+    answer = inputdlg('Enter winding resistance (Ohms)');
+    WINDING_RESISTANCE = str2num(answer{1});
 end
 
 THROTTLE = THROTTLE_MIN; %Default response
@@ -107,7 +109,7 @@ if(ALL_PARAMS && STEP>0)
                     
                     %Calculate Kv
                     KV = round(DATA.Result.AvgRPM/DATA.Result.AvgVBAT);
-                    Rm = 0.85;
+                    Rm = WINDING_RESISTANCE;
                     RealKv = DATA.Result.AvgRPM/(DATA.Result.AvgVBAT-(0.001*DATA.Result.AvgCurrent*Rm)); %Kv = RPM / (Volts ? Amps × Rm)
                     KvMessage = ['Measured Kv is:', 32, num2str(KV),'. Current was:',...
                         32,num2str(round(DATA.Result.AvgCurrent)),'mA. If Rm=',...

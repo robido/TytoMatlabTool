@@ -5,6 +5,7 @@ function [STATE Message PITCH THROTTLE] = MainMotorScript(STATE)
 %PARAMETERS
 MOTOR_START_POWER = 1150; %Initial throttle value
 MAX_RPM = 6000; %Hard limit to protect system
+MAX_THROTTLE = 2000;
 
 %Temperature parameters
 SETTLE_TEMPERATURE = 0; %Activate if the test should settle in temp as well
@@ -347,6 +348,10 @@ if(ALL_PARAMS && STEP>0)
                 %Output
                 THROTTLE = round(controller.throttle);
                 PITCH = round(controller.pitch);
+                
+                if(THROTTLE >= MAX_THROTTLE)
+                    TEST_FINISHED = 'MAX THROTTLE REACHED';
+                end
                 
                 if(PITCH <= MIN_PITCH || PITCH >= MAX_PITCH)
                     TEST_FINISHED = 'PITCH MAXED OUT';
