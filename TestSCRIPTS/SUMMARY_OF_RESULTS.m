@@ -113,7 +113,7 @@ cell2csv([path '\Summary.csv'],DISPLAY);
 
 
 %% Make motors efficiency maps
-%plotdims = 200;
+numelems = 300;
 rpmrange = RPMs;
 trustrange = TRUSTs;
 figure(1);
@@ -162,9 +162,15 @@ for motor = 1:numel(UniqueMotors)
     %Generate efficiency map for each motor
     F = TriScatteredInterp([rpms,torques],efficiencies,'natural');
     F_rpm_torque{motor}=F;
-    [qx,qy]=meshgrid(rpmrange,torques);
+    
+    %Plot
+    minrpm = rpmrange(1);
+    maxrpm = rpmrange(numel(rpmrange));
+    mintorque = min(torques);
+    maxtorque = max(torques);
+    [qx,qy]=meshgrid(minrpm:(maxrpm-minrpm)/numelems:maxrpm,mintorque:(maxtorque-mintorque)/numelems:maxtorque);
     qz = F(qx,qy);
-    surf(qx,qy,qz);
+    contourf(qx,qy,qz);
     colormap jet
     colorbar
     hold on;
@@ -219,7 +225,13 @@ for blade = 1:numel(UniqueBlades)
     %Generate efficiency map for each blade
     F = TriScatteredInterp([rpms,trusts],efficiencies);
     F_rpm_trust{blade}=F;
-    [qx,qy]=meshgrid(rpmrange,trustrange);
+    
+    %Plot
+    minrpm = rpmrange(1);
+    maxrpm = rpmrange(numel(rpmrange));
+    mintrust = min(trustrange);
+    maxtrust = max(trustrange);
+    [qx,qy]=meshgrid(minrpm:(maxrpm-minrpm)/numelems:maxrpm,mintrust:(maxtrust-mintrust)/numelems:maxtrust);
     qz = F(qx,qy);
     contourf(qx,qy,qz);
     colormap jet
@@ -235,6 +247,7 @@ end
 Best_blades = char(zeros(numel(TRUSTs)));
 Best_motors = char(zeros(numel(TRUSTs)));
 Best_efficiencies = 0*TRUSTs;
+Best_rpms = 0*TRUSTs;
 
 for motor = 1:numel(UniqueMotors)
     figure(2+motor);
@@ -250,9 +263,16 @@ for motor = 1:numel(UniqueMotors)
         effs = F_motor(qx,torques);
         
         %Check if best
-        %qz = F_blade(rpmrange,Trust_choices);
-        
-                
+        for trust=1:numel(trustrange)
+            [max_eff,rpm_index] = max(effs(:,trust));
+            if(max_eff>Best_efficiencies(trust))
+                Best_efficiencies(trust) = max_eff;
+                Best_rpms = rpmrange(rpm_index);
+                Best_blades = UniqueBlades{blade};
+                Best_motors = UniqueMotors{motor};
+            end
+        end
+     
         %Plot
         subplot(rows,columns,blade);
         contourf(qx,qy,effs);
@@ -265,4 +285,7 @@ for motor = 1:numel(UniqueMotors)
         title(strcat('Blade',32,UniqueBlades{blade},'. Motor',32,UniqueMotors{motor},'.'));
     end
 end
-
+Best_blades
+Best_motors
+Best_efficiencies
+Best_rpms
