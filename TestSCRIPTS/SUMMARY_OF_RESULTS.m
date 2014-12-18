@@ -160,7 +160,7 @@ for motor = 1:numel(UniqueMotors)
     end
     
     %Generate efficiency map for each motor
-    F = TriScatteredInterp([rpms,torques],efficiencies,'natural');
+    F = TriScatteredInterp([rpms,torques],efficiencies);
     F_rpm_torque{motor}=F;
     
     %Plot
@@ -261,15 +261,16 @@ for motor = 1:numel(UniqueMotors)
         ws = qx.*(2*pi/60);
         torques = qy./(0.001*qz.*ws);
         effs = F_motor(qx,torques);
+        total_effs = effs.*qz;
         
         %Check if best
         for trust=1:numel(trustrange)
-            [max_eff,rpm_index] = max(effs(:,trust));
+            [max_eff,rpm_index] = max(total_effs(trust,:));
             if(max_eff>Best_efficiencies(trust))
                 Best_efficiencies(trust) = max_eff;
-                Best_rpms = rpmrange(rpm_index);
-                Best_blades = UniqueBlades{blade};
-                Best_motors = UniqueMotors{motor};
+                Best_rpms(trust) = rpmrange(rpm_index);
+                Best_blades(trust) = UniqueBlades{blade};
+                Best_motors(trust) = UniqueMotors{motor};
             end
         end
      
