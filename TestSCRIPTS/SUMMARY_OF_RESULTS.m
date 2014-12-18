@@ -3,9 +3,12 @@
 clc;
 clear all;
 
+%Remove specific warnings
+
+
 %% Get all the files to process
-%path = 'D:\Dropbox\Charles Dominic\Technical\Trust Test Jig\Test Results\Main';
-path = 'E:\Dropbox\Charles Dominic\Technical\Trust Test Jig\Test Results\Main';
+path = 'D:\Dropbox\Charles Dominic\Technical\Trust Test Jig\Test Results\Main';
+%path = 'E:\Dropbox\Charles Dominic\Technical\Trust Test Jig\Test Results\Main';
 
 old_folder = cd([path '\Tests']);
 csv_files = dir('*.csv');
@@ -109,6 +112,7 @@ for order_num=1:numel(COMPLETE_DATA)
         DISPLAY{order_num+1,trust+3}=max(efficiency);
     end
 end
+disp(DISPLAY);
 cell2csv([path '\Summary.csv'],DISPLAY);
 
 
@@ -174,7 +178,7 @@ for motor = 1:numel(UniqueMotors)
     colormap jet
     colorbar
     hold on;
-    plot(rpms,torques,'x');
+    plot(rpms,torques,'o');
     xlabel('Motor speed (rpm)');
     ylabel('Motor torque (mNm)');
     title(strcat('Efficiency map for motor',32,current_motor,'.',10,13,'Max efficiency of',32,num2str(max_efficiency,2),' at',32,num2str(round(rpm_at_max_eff)),'rpm and',32,num2str(torque_at_max_eff,3),'mNm torque.'));
@@ -237,15 +241,15 @@ for blade = 1:numel(UniqueBlades)
     colormap jet
     colorbar
     hold on;
-    plot(rpms,trusts,'x');
+    plot(rpms,trusts,'o');
     xlabel('Speed (rpm)');
     ylabel('Trust (grams)');
     title(strcat('Efficiency map for blade',32,current_blade,'.',10,13,'Max efficiency of',32,num2str(max_efficiency,3),'g/w at',32,num2str(round(rpm_at_max_eff)),'rpm and',32,num2str(trust_at_max_eff,3),'g trust.'));
 end
 
 %% Create the combined efficiency maps
-Best_blades = char(zeros(numel(TRUSTs)));
-Best_motors = char(zeros(numel(TRUSTs)));
+Best_blades = char(zeros(numel(TRUSTs),1));
+Best_motors = char(zeros(numel(TRUSTs),1));
 Best_efficiencies = 0*TRUSTs;
 Best_rpms = 0*TRUSTs;
 
@@ -286,7 +290,19 @@ for motor = 1:numel(UniqueMotors)
         title(strcat('Blade',32,UniqueBlades{blade},'. Motor',32,UniqueMotors{motor},'.'));
     end
 end
-Best_blades
-Best_motors
-Best_efficiencies
-Best_rpms
+%Present the results
+clear DISPLAY
+DISPLAY{1,1}='Trust (g)';
+DISPLAY{1,2}='Sugg. Motor';
+DISPLAY{1,3}='Sugg. Blade';
+DISPLAY{1,4}='Sugg. RPM';
+DISPLAY{1,5}='Expected Eff. (g/w)';
+for i=1:numel(Best_blades)
+    DISPLAY{1+i,1}=TRUSTs(i);
+    DISPLAY{1+i,2}=Best_motors(i);
+    DISPLAY{1+i,3}=Best_blades(i);
+    DISPLAY{1+i,4}=Best_rpms(i);
+    DISPLAY{1+i,5}=Best_efficiencies(i);
+end
+disp(DISPLAY);
+cell2csv([path '\Predictions.csv'],DISPLAY);

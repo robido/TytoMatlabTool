@@ -203,7 +203,7 @@ if(ALL_PARAMS && STEP>0)
             time_since_start = (current_time - DATA.start_time)*24*3600;
             
             %Check rpm sensor
-            if(time_since_start>5 && RPM<200)
+            if(time_since_start>8 && RPM<100)
                 TEST_FINISHED = 'RPM SENSOR PROBLEM';
                 MainMessage = strcat('TEST FAILED: RPM sensor says motor is stopped.');
                 STEP = -1;
@@ -355,6 +355,13 @@ if(ALL_PARAMS && STEP>0)
                 
                 if(PITCH <= MIN_PITCH || PITCH >= MAX_PITCH)
                     TEST_FINISHED = 'PITCH MAXED OUT';
+                end
+                
+                if(STATE.skipcurrent)
+                    answer = inputdlg('Enter reason for skipping');
+                    TEST_FINISHED = answer{1};
+                    TEST_FINISHED = ['SKIPPED:',32,TEST_FINISHED];
+                    STATE.skipcurrent = 0;
                 end
             end
             

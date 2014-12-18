@@ -22,7 +22,7 @@ function varargout = serial_GUI_noICT(varargin)
 
 % Edit the above text to modify the response to help serial_GUI_noICT
 
-% Last Modified by GUIDE v2.5 16-Dec-2014 09:22:15
+% Last Modified by GUIDE v2.5 18-Dec-2014 10:54:27
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -113,7 +113,9 @@ switch CHECK_STATUS
     VALID_RC = 1;
   case 2 %Trust test script
     if(CYCLE)
+        STATE.skipcurrent = get(handles.chkSkip,'Value');
         [STATE MainMessage PITCH THROTTLE] = MainMotorScript(STATE);
+        set(handles.chkSkip,'Value',STATE.skipcurrent);
         STATE.SAVED_RC.PITCH = PITCH;
         STATE.SAVED_RC.THROTTLE = THROTTLE;
         STATE.MainMessage = MainMessage;
@@ -820,3 +822,12 @@ else
     set(handles.chk_Sliders_Manual,'Enable','on');
     set(handles.chk_manual_rc,'Enable','on');
 end
+
+
+% --- Executes on button press in chkSkip.
+function chkSkip_Callback(hObject, eventdata, handles)
+% hObject    handle to chkSkip (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of chkSkip
