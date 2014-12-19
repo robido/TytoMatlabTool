@@ -35,13 +35,7 @@ catch
     KvMessage = 'Waiting for hardware to respond...';
 end
 
-if(ALL_PARAMS && STEP>0)
-    %Check parameters range
-    if(VBAT<6.4 || VBAT>8.4)
-        KvMessage = 'TEST FAILED: Input voltage out of range [6.4 - 8.4]v.';
-        STEP = -1;
-    end
-    
+if(ALL_PARAMS && STEP>0)   
     switch STEP
         case 1 %Calibrate sensors
             THROTTLE = THROTTLE_MIN;
@@ -112,7 +106,8 @@ if(ALL_PARAMS && STEP>0)
                     Rm = WINDING_RESISTANCE;
                     RealKv = DATA.Result.AvgRPM/(DATA.Result.AvgVBAT-(0.001*DATA.Result.AvgCurrent*Rm)); %Kv = RPM / (Volts ? Amps × Rm)
                     KvMessage = ['Measured Kv is:', 32, num2str(KV),'. Current was:',...
-                        32,num2str(round(DATA.Result.AvgCurrent)),'mA. If Rm=',...
+                        32,num2str(round(DATA.Result.AvgCurrent)),'mA.',...
+                        32,'Voltage:',32,num2str(VBAT),'V. If Rm=',...
                         num2str(Rm),'Ohm, then Kv becomes',32,num2str(round(RealKv)),'.'];
                     disp(KvMessage);
                     

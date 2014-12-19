@@ -92,6 +92,12 @@ LAST_CONTROL_CHECKS = CHECK_STATUS;
 OTHER_COMMANDS = [];
 VALID_RC = 0;
 
+if(CHECK_STATUS == 2)
+    set(handles.chkSkip,'Enable','on');
+else
+    set(handles.chkSkip,'Enable','off');
+end
+
 %Custom control
 switch CHECK_STATUS
   case 1 %Joystick control
@@ -114,7 +120,7 @@ switch CHECK_STATUS
   case 2 %Trust test script
     if(CYCLE)
         STATE.skipcurrent = get(handles.chkSkip,'Value');
-        [STATE MainMessage PITCH THROTTLE] = MainMotorScript(STATE);
+        [STATE MainMessage PITCH THROTTLE] = MainMotorScriptV2(STATE);
         set(handles.chkSkip,'Value',STATE.skipcurrent);
         STATE.SAVED_RC.PITCH = PITCH;
         STATE.SAVED_RC.THROTTLE = THROTTLE;

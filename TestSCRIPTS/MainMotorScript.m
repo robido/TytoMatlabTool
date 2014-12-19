@@ -1,6 +1,7 @@
 function [STATE Message PITCH THROTTLE] = MainMotorScript(STATE)
-%MAINMOTORSCRIPT Summary of this function goes here
-%   Detailed explanation goes here
+%MAINMOTORSCRIPT This version targets a specific trust and rpm, as defined
+%from the csv file. See V2 for the other version that records data for all
+%pitch and throttle values.
 
 %PARAMETERS
 MOTOR_START_POWER = 1150; %Initial throttle value
@@ -22,6 +23,7 @@ SPOOL_UP_RATE = 20; %Throttle signal (ms) / second
 TRUST_TOLERANCE = 7; %Steadystate difference (to consider test valid)
 PITCH_RATE = 20; %Pitch signal (ms) / second
 OVERCURRENT = 6000; %6A max (experimentally, the motor reaches 60C at 2.5A cont.)
+MAX_POWER = 45; %Watts
 
 %Controller
 RPM_I_TERM = 0.03;
@@ -119,8 +121,8 @@ end
 
 if(ALL_PARAMS && STEP>0)
     %Check parameters range
-    if(VBAT<6.4 || VBAT>8.4)
-        MainMessage = strcat('TEST FAILED: Input voltage out of range [6.4 - 8.4]v.',32,num2str(VBAT),'V.');
+    if((VBAT<6.4 || VBAT>8.4) && (VBAT<10.1 || VBAT>12.1))
+        MainMessage = strcat('TEST FAILED: Input voltage out of range [6.4 - 8.4] or [10.1 - 12.1]v.',32,num2str(VBAT),'V.');
         STEP = -1;
     end
     
@@ -210,13 +212,18 @@ if(ALL_PARAMS && STEP>0)
             end
             
             %Check current sensor during spool up
-            if(time_since_start>3 && time_since_start<5 && CURRENT<100)
+            if(time_since_start>3 && time_since_start<5 && CURRENT<30)
                 TEST_FINISHED = 'CURRENT SENSOR PROBLEM';
                 MainMessage = strcat('TEST FAILED: Current sensor seems incorrect.');
                 STEP = -1;
             end
             if(CURRENT>OVERCURRENT)
                 TEST_FINISHED = ['OVERCURRENT:' 32 num2str(round(CURRENT)) 'mA.'];
+            end
+            
+            power = 0.001*CURRENT*VBAT;
+            if(power > MAX_POWER)
+                TEST_FINISHED = ['POWER >' 32 num2str(round(power)) 'W.'];
             end
             
             %Check temp sensor still attached to motor
