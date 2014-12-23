@@ -1,22 +1,26 @@
 %% %%%%Makes a table summarizing the results
 
-%clc;
+clc;
 %clear all;
 
-%Remove specific warnings
+%SET OPTIONS
+mesh_size = 100;
 
 
 %% Get all the files to process
-path = 'D:\Dropbox\Charles Dominic\Technical\Trust Test Jig\Test Results\Main\TestsV2';
-%path = 'E:\Dropbox\Charles Dominic\Technical\Trust Test Jig\Test Results\Main\TestsV2';
+%path = 'D:\Dropbox\Charles Dominic\Technical\Trust Test Jig\Test Results\Main\TestsV2';
+path = 'E:\Dropbox\Charles Dominic\Technical\Trust Test Jig\Test Results\Main\TestsV2';
 
-old_folder = cd(path);
+delete([path '\Plots\*.*']); %delete existing plots
+
+old_folder = cd([path '\CSV']);
 csv_files = dir('*.csv');
 cd(old_folder);
 
 COMPLETE_DATA = {};
 TRUSTs = [];
 RPMs = [];
+TORQUEs = [];
 MOTORs = {};
 BLADEs = {};
 
@@ -25,7 +29,7 @@ for file_num = 1:numel(csv_files)
     FILEDATA = [];
     
     %Gets the complete test data labelled as DONE into array
-    filename = [path '\' csv_files(file_num,1).name];
+    filename = [path '\CSV\' csv_files(file_num,1).name];
     fileID = fopen(filename);
     index = 0;
     line = 0;
@@ -63,6 +67,7 @@ for file_num = 1:numel(csv_files)
                             vals = [vals DATA{1,i}(1)];
                         end
                         FILEDATA = [FILEDATA; vals];
+                        TORQUEs = [TORQUEs vals(5)];
                         TRUSTs = [TRUSTs vals(4)];
                         RPMs = [RPMs vals(3)];
                     end
@@ -72,12 +77,16 @@ for file_num = 1:numel(csv_files)
     end
     
     fclose(fileID);
+    if(isempty(FILEDATA))
+        msgbox(['Something is wrong with' 32 filename '. Maybe it is missing a header?']);
+    end
     COMPLETE_DATA{file_num}=FILEDATA;
+    
+    TORQUEs = unique(sort(TORQUEs));
+    TRUSTs = unique(sort(TRUSTs));
+    RPMs = unique(sort(RPMs));
 end
 
-%Get the list of trusts
-TRUSTs = unique(sort(TRUSTs));
-RPMs = unique(sort(RPMs));
 UniqueMotors = unique(sort(MOTORs));
 UniqueBlades = unique(sort(BLADEs));
 if(max(strcmp('',UniqueMotors))>0)
@@ -90,43 +99,11 @@ end
 %Sort by blade alphabetically
 [~,ORDER]=sort(BLADEs);
 
-%% For each test, and each trust, get the best efficiency in w/g
-% DISPLAY{1,1}='g/w';
-% DISPLAY{1,2}='Motor';
-% DISPLAY{1,3}='Blade';
-% for order_num=1:numel(COMPLETE_DATA)
-%     test_num = ORDER(order_num);
-%     [pathstr, name, ext] = fileparts(csv_files(test_num,1).name);
-%     DISPLAY{order_num+1,1} = name;
-%     DISPLAY{order_num+1,2} = MOTORs{test_num};
-%     DISPLAY{order_num+1,3} = BLADEs{test_num};
-%     for trust = 1:numel(TRUSTs)
-%         DISPLAY{1,trust+3}=strcat(num2str(TRUSTs(trust)),'g');
-%         DATA = COMPLETE_DATA{1,test_num};
-%         
-%         %Only keep the lines for current trust
-%         DATA(DATA(:,2)~=TRUSTs(trust),:)=[];
-%         
-%         %Get the watts/g
-%         trustvals = DATA(:,4);
-%         voltages = DATA(:,6);
-%         currents = DATA(:,7)*0.001;
-%         efficiency = trustvals./(voltages.*currents);
-%         
-%         DISPLAY{order_num+1,trust+3}=max(efficiency);
-%     end
-% end
-% %disp(DISPLAY);
-% cell2csv([path '\Summary.csv'],DISPLAY);
-
-
 %% Make motors efficiency maps
-rpmrange = RPMs;
-trustrange = TRUSTs;
-mesh_size = 300;
-figure(1);
-title('Efficiency maps for the motors');
-%set(gcf, 'Position', get(0,'Screensize')); % Maximize figure.
+rpm_mesh = RPMs(1):(RPMs(numel(RPMs))-RPMs(1))/(mesh_size-1):RPMs(numel(RPMs));
+trust_mesh = TRUSTs(1):(TRUSTs(numel(TRUSTs))-TRUSTs(1))/(mesh_size-1):TRUSTs(numel(TRUSTs));
+torques_mesh = TORQUEs(1):(TORQUEs(numel(TORQUEs))-TORQUEs(1))/(mesh_size-1):TORQUEs(numel(TORQUEs));
+figh = figure(1);
 rows = floor(sqrt(numel(UniqueMotors)));
 columns = ceil(numel(UniqueMotors)/rows);
 for motor = 1:numel(UniqueMotors)
@@ -172,9 +149,6 @@ for motor = 1:numel(UniqueMotors)
     F_rpm_torque{motor}=F;
     
     %Plot
-    TORQUEs = unique(sort(torques));
-    rpm_mesh = RPMs(1):(RPMs(numel(RPMs))-RPMs(1))/mesh_size:RPMs(numel(RPMs));
-    torques_mesh = TORQUEs(1):(TORQUEs(numel(TORQUEs))-TORQUEs(1))/mesh_size:TORQUEs(numel(TORQUEs));
     [qx,qy]=meshgrid(rpm_mesh,torques_mesh);
     qz = F(qx,qy);
     contourf(qx,qy,qz);
@@ -186,11 +160,13 @@ for motor = 1:numel(UniqueMotors)
     ylabel('Motor torque (mNm)');
     title(strcat('Efficiency map for motor',32,current_motor,'.',10,13,'Max efficiency of',32,num2str(max_efficiency,2),' at',32,num2str(round(rpm_at_max_eff)),'rpm and',32,num2str(torque_at_max_eff,3),'mNm torque.'));
 end
+saveas(figh,[path '\Plots\Motors efficiency maps.fig']);
+saveas(figh,[path '\Plots\Motors efficiency maps.png']);
+saveas(figh,[path '\Plots\Motors efficiency maps.pdf']);
+close(figh);
 
 %% Make blades efficiency maps
-figure(2);
-title('Efficiency maps for the blades');
-set(gcf, 'Position', get(0,'Screensize')); % Maximize figure.
+figh = figure(2);
 rows = floor(sqrt(numel(UniqueBlades)));
 columns = ceil(numel(UniqueBlades)/rows);
 for blade = 1:numel(UniqueBlades)
@@ -201,6 +177,7 @@ for blade = 1:numel(UniqueBlades)
     trust_at_max_eff = 0;
     trusts = [];
     rpms = [];
+    torques = [];
     efficiencies = [];
     for i=1:numel(COMPLETE_DATA)
         if(strcmp(current_blade,BLADEs{i}))
@@ -220,6 +197,7 @@ for blade = 1:numel(UniqueBlades)
                     trusts = [trusts;trust];
                     rpms = [rpms;rpm];
                     efficiencies = [efficiencies;efficiency];
+                    torques = [torques;torque];
                     if(efficiency > max_efficiency)
                         max_efficiency = efficiency;
                         rpm_at_max_eff = rpm;
@@ -230,82 +208,120 @@ for blade = 1:numel(UniqueBlades)
     end
     
     %Generate efficiency map for each blade
-    F = TriScatteredInterp([rpms,trusts],efficiencies);
-    F_rpm_trust{blade}=F;
+    F_bladeEff_rpm_torques{blade}=TriScatteredInterp([rpms,torques],efficiencies);
+    F_torque_rpm_trust{blade}=TriScatteredInterp([rpms,trusts],torques);
+    F_bladeEff_rpm_trust{blade}=TriScatteredInterp([rpms,trusts],efficiencies);
     
     %Plot
-    minrpm = rpmrange(1);
-    maxrpm = rpmrange(numel(rpmrange));
-    mintrust = min(trustrange);
-    maxtrust = max(trustrange);
-    [qx,qy]=meshgrid(minrpm:(maxrpm-minrpm)/numelems:maxrpm,mintrust:(maxtrust-mintrust)/numelems:maxtrust);
+    [qx,qy]=meshgrid(rpm_mesh,trust_mesh);
+    F = F_bladeEff_rpm_trust{blade};
     qz = F(qx,qy);
     contourf(qx,qy,qz);
     colormap jet
     colorbar
-    hold on;
-    plot(rpms,trusts,'o');
+    %hold on;
+    %plot(rpms,trusts,'o');
     xlabel('Speed (rpm)');
     ylabel('Trust (grams)');
     title(strcat('Efficiency map for blade',32,current_blade,'.',10,13,'Max efficiency of',32,num2str(max_efficiency,3),'g/w at',32,num2str(round(rpm_at_max_eff)),'rpm and',32,num2str(trust_at_max_eff,3),'g trust.'));
 end
+saveas(figh,[path '\Plots\Blades efficiency maps.fig']);
+saveas(figh,[path '\Plots\Blades efficiency maps.png']);
+saveas(figh,[path '\Plots\Blades efficiency maps.pdf']);
+close(figh);
 
 %% Create the combined efficiency maps
-Best_blades = char(zeros(numel(TRUSTs),1));
-Best_motors = char(zeros(numel(TRUSTs),1));
-Best_efficiencies = 0*TRUSTs;
-Best_rpms = 0*TRUSTs;
+TRUST_RESULTS = 75:25:300;
+GEAR_RATIOS = [1:0.25:2.75 3:0.5:8];
+test_qty = numel(TRUST_RESULTS)*numel(GEAR_RATIOS);
+combinations = numel(GEAR_RATIOS)*numel(UniqueMotors)*numel(UniqueBlades);
+best_efficiencies = zeros(1,test_qty);
+best_rpms = zeros(1,test_qty);
+best_motors = char(zeros(1,test_qty));
+best_blades = char(zeros(1,test_qty));
+PLOTnum = 1;
+for gear = 1:numel(GEAR_RATIOS)
+    RATIO = GEAR_RATIOS(gear);
+    for motor = 1:numel(UniqueMotors)
+        figh=figure(2+motor+numel(UniqueMotors)*(gear-1));
+        F_motor = F_rpm_torque{motor};
+        for blade = 1:numel(UniqueBlades)
+            %Calculate combined efficiency map
+            F1 = F_bladeEff_rpm_torques{blade};
+            [qx,qy]=meshgrid(rpm_mesh,torques_mesh);
+            MOT_EFF = F_motor(RATIO*qx,qy/RATIO);
+            BLADE_EFF = F1(qx,qy);
+            TOTAL_EFF = MOT_EFF.*BLADE_EFF;
 
-for motor = 1:numel(UniqueMotors)
-    figure(2+motor);
-    F_motor = F_rpm_torque{motor};
-    for blade = 1:numel(UniqueBlades)
-        
-        %Calculate
-        F_blade = F_rpm_trust{blade};
-        [qx,qy]=meshgrid(rpmrange,trustrange);
-        qz = F_blade(qx,qy);
-        ws = qx.*(2*pi/60);
-        torques = qy./(0.001*qz.*ws);
-        effs = F_motor(qx,torques);
-        total_effs = effs.*qz;
-        
-        %Check if best
-        for trust=1:numel(trustrange)
-            [max_eff,rpm_index] = max(total_effs(trust,:));
-            if(max_eff>Best_efficiencies(trust))
-                Best_efficiencies(trust) = max_eff;
-                Best_rpms(trust) = rpmrange(rpm_index);
-                Best_blades(trust) = UniqueBlades{blade};
-                Best_motors(trust) = UniqueMotors{motor};
-            end
+            %Plot efficiency map
+            subplot(rows,columns,blade);
+            contourf(qx,qy,TOTAL_EFF);
+            colormap jet
+            colorbar
+            hold on;
+            xlabel('Speed (rpm)');
+            ylabel('Torque (mNm)');
+            title(strcat('Ratio 1:',num2str(RATIO),'. Blade',32,UniqueBlades{blade},'. Motor',32,UniqueMotors{motor},'.'));
+
+            iplus = (gear-1)*numel(TRUST_RESULTS);
+            for i=1:numel(TRUST_RESULTS)
+                %Get data for specific trust
+                trust_line = TRUST_RESULTS(i);
+                F2 = F_torque_rpm_trust{blade};
+                tx = F2(rpm_mesh,trust_line*ones(size(rpm_mesh)));
+                mot_eff_at_trust = F_motor(RATIO*rpm_mesh,tx/RATIO);
+                blade_eff_at_trust = F1(rpm_mesh,tx);
+                total_eff_at_trust = mot_eff_at_trust.*blade_eff_at_trust;
+                tx(isnan(total_eff_at_trust))=NaN; %remove from tx elements that the motor cannot handle
+                [max_eff index_max_eff] = max(total_eff_at_trust);
+                rpm_of_max_eff = rpm_mesh(index_max_eff);
+                torque_of_max_eff = tx(index_max_eff);
+
+                %Check if best
+                if(best_efficiencies(i+iplus)<max_eff)
+                    best_efficiencies(i+iplus) = max_eff;
+                    best_rpms(i+iplus) = rpm_of_max_eff;
+                    best_motors(i+iplus) = UniqueMotors{motor};
+                    best_blades(i+iplus) = UniqueBlades{blade};
+                end
+
+                %Plot line for this trust   
+                plot(rpm_mesh,tx,'r');
+                plot(rpm_of_max_eff,torque_of_max_eff,'o','MarkerFaceColor','g','MarkerSize',5);
+                text(rpm_of_max_eff,torque_of_max_eff,[num2str(trust_line) 'g' 10 13 32], 'HorizontalAlignment','left','FontSize',12)
+            end          
         end
-     
-        %Plot
-        subplot(rows,columns,blade);
-        contourf(qx,qy,effs);
-        colormap jet
-        colorbar
-        hold on;
-        %plot(rpms,trusts,'x');
-        xlabel('Speed (rpm)');
-        ylabel('Trust (grams)');
-        title(strcat('Blade',32,UniqueBlades{blade},'. Motor',32,UniqueMotors{motor},'.'));
+        saveas(figh,[path '\Plots\Combination ','Ratio ',num2str(RATIO),' Motor',32,UniqueMotors{motor},'.fig']);
+        saveas(figh,[path '\Plots\Combination ','Ratio ',num2str(RATIO),' Motor',32,UniqueMotors{motor},'.png']);
+        saveas(figh,[path '\Plots\Combination ','Ratio ',num2str(RATIO),' Motor',32,UniqueMotors{motor},'.pdf']);
+        close(figh);
     end
 end
-%Present the results
+
+%% Present the results
 clear DISPLAY
 DISPLAY{1,1}='Trust (g)';
-DISPLAY{1,2}='Sugg. Motor';
-DISPLAY{1,3}='Sugg. Blade';
-DISPLAY{1,4}='Sugg. RPM';
-DISPLAY{1,5}='Expected Eff. (g/w)';
-for i=1:numel(Best_blades)
-    DISPLAY{1+i,1}=TRUSTs(i);
-    DISPLAY{1+i,2}=Best_motors(i);
-    DISPLAY{1+i,3}=Best_blades(i);
-    DISPLAY{1+i,4}=Best_rpms(i);
-    DISPLAY{1+i,5}=Best_efficiencies(i);
+DISPLAY{1,2}='Gearing';
+DISPLAY{1,3}='Sugg. Motor';
+DISPLAY{1,4}='Sugg. Blade';
+DISPLAY{1,5}='Sugg. Blade RPM';
+DISPLAY{1,6}='Expected Eff. (g/w)';
+display_line = 2;
+for gear = 1:numel(GEAR_RATIOS)
+    iplus = (gear-1)*numel(TRUST_RESULTS);
+    for i=1:numel(TRUST_RESULTS)
+        if(best_rpms(i+iplus)>0)
+            DISPLAY{display_line,1}=TRUST_RESULTS(i);
+            DISPLAY{display_line,2}=GEAR_RATIOS(gear);
+            DISPLAY{display_line,3}=best_motors(i+iplus);
+            DISPLAY{display_line,4}=best_blades(i+iplus);
+            DISPLAY{display_line,5}=best_rpms(i+iplus);
+            DISPLAY{display_line,6}=best_efficiencies(i+iplus);
+            display_line = display_line+1;
+        end
+    end
 end
 disp(DISPLAY);
-cell2csv([path '\Predictions.csv'],DISPLAY);
+cell2csv([path '\PredictionsV2.csv'],DISPLAY);
+
+msgbox('DONE');

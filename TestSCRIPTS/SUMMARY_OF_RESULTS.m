@@ -7,10 +7,10 @@ clear all;
 
 
 %% Get all the files to process
-path = 'D:\Dropbox\Charles Dominic\Technical\Trust Test Jig\Test Results\Main';
-%path = 'E:\Dropbox\Charles Dominic\Technical\Trust Test Jig\Test Results\Main';
+%path = 'D:\Dropbox\Charles Dominic\Technical\Trust Test Jig\Test Results\Main';
+path = 'E:\Dropbox\Charles Dominic\Technical\Trust Test Jig\Test Results\Main';
 
-old_folder = cd([path '\Tests']);
+old_folder = cd([path '\TestsV1']);
 csv_files = dir('*.csv');
 cd(old_folder);
 
@@ -25,7 +25,7 @@ for file_num = 1:numel(csv_files)
     FILEDATA = [];
     
     %Gets the complete test data labelled as DONE into array
-    filename = [path '\Tests\' csv_files(file_num,1).name];
+    filename = [path '\TestsV1\' csv_files(file_num,1).name];
     fileID = fopen(filename);
     index = 0;
     line = 0;
