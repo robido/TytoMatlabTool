@@ -190,6 +190,11 @@ if(ALL_PARAMS && STEP>0)
                 STEP = -1;
             end
             
+            %RPM sensor saturation
+            if(RPM>10000)
+                TEST_FINISHED = 'RPM SENSOR MAX SPEED';
+            end
+            
             %Check current sensor during spool up
             if(time_since_start>3 && time_since_start<5 && CURRENT<30)
                 TEST_FINISHED = 'CURRENT SENSOR PROBLEM';

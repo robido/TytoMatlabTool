@@ -4,7 +4,7 @@ clc;
 %clear all;
 
 %SET OPTIONS
-mesh_size = 100;
+mesh_size = 300;
 
 
 %% Get all the files to process
@@ -23,6 +23,7 @@ RPMs = [];
 TORQUEs = [];
 MOTORs = {};
 BLADEs = {};
+RATIOs = [];
 
 %Get data for all the files
 for file_num = 1:numel(csv_files)
@@ -35,6 +36,7 @@ for file_num = 1:numel(csv_files)
     line = 0;
     is_table = 0;
     number_read = 0;
+    RATIOs(file_num) = 1;
 
     %Parse the whole file
     while(line~=-1)
@@ -50,6 +52,9 @@ for file_num = 1:numel(csv_files)
                     DATA = textscan(line,'%s %s','Delimiter',',');
                     if(strcmp(DATA{1,1}{1,1},'Motor:'))
                         MOTORs{file_num} = DATA{1,2}{1,1};
+                    end
+                    if(strcmp(DATA{1,1}{1,1},'Ratio:'))
+                        RATIOs(file_num) = DATA{1,2}(1);
                     end
                     if(strcmp(DATA{1,1}{1,1},'Blade:'))
                         BLADEs{file_num} = DATA{1,2}{1,1};
@@ -103,11 +108,8 @@ end
 rpm_mesh = RPMs(1):(RPMs(numel(RPMs))-RPMs(1))/(mesh_size-1):RPMs(numel(RPMs));
 trust_mesh = TRUSTs(1):(TRUSTs(numel(TRUSTs))-TRUSTs(1))/(mesh_size-1):TRUSTs(numel(TRUSTs));
 torques_mesh = TORQUEs(1):(TORQUEs(numel(TORQUEs))-TORQUEs(1))/(mesh_size-1):TORQUEs(numel(TORQUEs));
-figh = figure(1);
-rows = floor(sqrt(numel(UniqueMotors)));
-columns = ceil(numel(UniqueMotors)/rows);
 for motor = 1:numel(UniqueMotors)
-    subplot(rows,columns,motor);
+    figh = figure('Visible','Off');
     current_motor = UniqueMotors{motor};
     max_efficiency = 0;
     rpm_at_max_eff = 0;
@@ -118,12 +120,13 @@ for motor = 1:numel(UniqueMotors)
     for i=1:numel(COMPLETE_DATA)
         if(strcmp(current_motor,MOTORs{i}))
             DATA = COMPLETE_DATA{1,i};
+            Ratio = RATIOs(i);
             for j=1:size(DATA,1)
                 %Get variables
                 current = DATA(j,7); %mA
                 voltage = DATA(j,6); %V
-                torque = DATA(j,5); %mNm
-                rpm = DATA(j,3); %RPM
+                torque = DATA(j,5)/Ratio; %mNm
+                rpm = DATA(j,3)*Ratio; %RPM
                 w = 2*pi*rpm/60; %rad/s
 
                 %Efficiency calc.
@@ -154,23 +157,22 @@ for motor = 1:numel(UniqueMotors)
     contourf(qx,qy,qz);
     colormap jet
     colorbar
+    caxis([0.3, 1]);
     %hold on;
     %plot(rpms,torques,'o');
     xlabel('Motor speed (rpm)');
     ylabel('Motor torque (mNm)');
     title(strcat('Efficiency map for motor',32,current_motor,'.',10,13,'Max efficiency of',32,num2str(max_efficiency,2),' at',32,num2str(round(rpm_at_max_eff)),'rpm and',32,num2str(torque_at_max_eff,3),'mNm torque.'));
+    saveas(figh,[path '\Plots\Motor',32,current_motor,32,'efficiency map.fig']);
+    saveas(figh,[path '\Plots\Motor',32,current_motor,32,'efficiency map.png']);
+    saveas(figh,[path '\Plots\Motor',32,current_motor,32,'efficiency map.pdf']);
+    close(figh);
 end
-saveas(figh,[path '\Plots\Motors efficiency maps.fig']);
-saveas(figh,[path '\Plots\Motors efficiency maps.png']);
-saveas(figh,[path '\Plots\Motors efficiency maps.pdf']);
-close(figh);
+
 
 %% Make blades efficiency maps
-figh = figure(2);
-rows = floor(sqrt(numel(UniqueBlades)));
-columns = ceil(numel(UniqueBlades)/rows);
 for blade = 1:numel(UniqueBlades)
-    subplot(rows,columns,blade);
+    figh = figure('Visible','Off');
     current_blade = UniqueBlades{blade};
     max_efficiency = 0;
     rpm_at_max_eff = 0;
@@ -219,20 +221,21 @@ for blade = 1:numel(UniqueBlades)
     contourf(qx,qy,qz);
     colormap jet
     colorbar
+    caxis([5, 60]);
     %hold on;
     %plot(rpms,trusts,'o');
     xlabel('Speed (rpm)');
     ylabel('Trust (grams)');
     title(strcat('Efficiency map for blade',32,current_blade,'.',10,13,'Max efficiency of',32,num2str(max_efficiency,3),'g/w at',32,num2str(round(rpm_at_max_eff)),'rpm and',32,num2str(trust_at_max_eff,3),'g trust.'));
+    saveas(figh,[path '\Plots\Blade',32,current_blade,32,'efficiency map.fig']);
+    saveas(figh,[path '\Plots\Blade',32,current_blade,32,'efficiency map.png']);
+    saveas(figh,[path '\Plots\Blade',32,current_blade,32,'efficiency map.pdf']);
+    close(figh);
 end
-saveas(figh,[path '\Plots\Blades efficiency maps.fig']);
-saveas(figh,[path '\Plots\Blades efficiency maps.png']);
-saveas(figh,[path '\Plots\Blades efficiency maps.pdf']);
-close(figh);
 
 %% Create the combined efficiency maps
 TRUST_RESULTS = 75:25:300;
-GEAR_RATIOS = [1:0.25:2.75 3:0.5:8];
+GEAR_RATIOS = [1 1.5 2 2.5 3 5];
 test_qty = numel(TRUST_RESULTS)*numel(GEAR_RATIOS);
 combinations = numel(GEAR_RATIOS)*numel(UniqueMotors)*numel(UniqueBlades);
 best_efficiencies = zeros(1,test_qty);
@@ -243,7 +246,6 @@ PLOTnum = 1;
 for gear = 1:numel(GEAR_RATIOS)
     RATIO = GEAR_RATIOS(gear);
     for motor = 1:numel(UniqueMotors)
-        figh=figure(2+motor+numel(UniqueMotors)*(gear-1));
         F_motor = F_rpm_torque{motor};
         for blade = 1:numel(UniqueBlades)
             %Calculate combined efficiency map
@@ -254,14 +256,15 @@ for gear = 1:numel(GEAR_RATIOS)
             TOTAL_EFF = MOT_EFF.*BLADE_EFF;
 
             %Plot efficiency map
-            subplot(rows,columns,blade);
+            figh=figure('Visible','Off');
             contourf(qx,qy,TOTAL_EFF);
             colormap jet
             colorbar
+            caxis([5, 20]);
             hold on;
             xlabel('Speed (rpm)');
             ylabel('Torque (mNm)');
-            title(strcat('Ratio 1:',num2str(RATIO),'. Blade',32,UniqueBlades{blade},'. Motor',32,UniqueMotors{motor},'.'));
+            title(strcat('Ratio ',num2str(RATIO),'. Blade',32,UniqueBlades{blade},'. Motor',32,UniqueMotors{motor},'.'));
 
             iplus = (gear-1)*numel(TRUST_RESULTS);
             for i=1:numel(TRUST_RESULTS)
@@ -289,12 +292,13 @@ for gear = 1:numel(GEAR_RATIOS)
                 plot(rpm_mesh,tx,'r');
                 plot(rpm_of_max_eff,torque_of_max_eff,'o','MarkerFaceColor','g','MarkerSize',5);
                 text(rpm_of_max_eff,torque_of_max_eff,[num2str(trust_line) 'g' 10 13 32], 'HorizontalAlignment','left','FontSize',12)
-            end          
+            end  
+            
+            saveas(figh,[path '\Plots\Combination ','Ratio ',num2str(RATIO),' Motor',32,UniqueMotors{motor},' Blade',32,UniqueBlades{blade},'.fig']);
+            saveas(figh,[path '\Plots\Combination ','Ratio ',num2str(RATIO),' Motor',32,UniqueMotors{motor},' Blade',32,UniqueBlades{blade},'.png']);
+            saveas(figh,[path '\Plots\Combination ','Ratio ',num2str(RATIO),' Motor',32,UniqueMotors{motor},' Blade',32,UniqueBlades{blade},'.pdf']);
+            close(figh);
         end
-        saveas(figh,[path '\Plots\Combination ','Ratio ',num2str(RATIO),' Motor',32,UniqueMotors{motor},'.fig']);
-        saveas(figh,[path '\Plots\Combination ','Ratio ',num2str(RATIO),' Motor',32,UniqueMotors{motor},'.png']);
-        saveas(figh,[path '\Plots\Combination ','Ratio ',num2str(RATIO),' Motor',32,UniqueMotors{motor},'.pdf']);
-        close(figh);
     end
 end
 

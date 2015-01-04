@@ -6,7 +6,7 @@ FIELDs = fieldnames(DATA)';
 if exist(file, 'file') ~= 2
     %Create the header
     fid = fopen(file, 'w') ;
-    fprintf(fid, 'Main motor test V2 data\nCheck .mat file with this one for parameters\nMotor:\nESC:\nESC config/firmware:\nBlade:\nMATLAB commit version:\nRelay board commit version:\nNanowii commit version:\nComment:\n') ;
+    fprintf(fid, 'Main motor test V2 data\nCheck .mat file with this one for parameters\nMotor:\nESC:\nESC config/firmware:\nBlade:\nRatio:\nMATLAB commit version:\nRelay board commit version:\nNanowii commit version:\nComment:\n') ;
     fprintf(fid, '%s,', 'STATUS,Date,Time') ;
     for i=1:numel(FIELDs)
         fprintf(fid, '%s,', FIELDs{i}) ;
