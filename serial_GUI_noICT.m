@@ -44,11 +44,12 @@ end
 % End initialization code - DO NOT EDIT
 
 function GUI_update_timer(~,~,hObject)
-persistent STATE last_cycle refresh_delay averageSerialHz LAST_CONTROL_CHECKS CYCLE
+persistent STATE last_cycle refresh_delay averageSerialHz LAST_CONTROL_CHECKS CYCLE joy
 try
 if(isempty(last_cycle))
     last_cycle = now;
     refresh_delay = 0;
+    joy = [0 0 0 0 0];
     STATE.OUTCOMMANDS = [];
     STATE.SAVED_RC.YAW = [];
     STATE.SAVED_RC.PITCH = [];
@@ -98,25 +99,42 @@ else
     set(handles.chkSkip,'Enable','off');
 end
 
+%Get the joystick readings
+if(CYCLE)
+    joy=jst; 
+    set(handles.txt_joy_input,'String',['Joy input:',32,num2str(joy,2)]);
+end
+
 %Custom control
 switch CHECK_STATUS
   case 1 %Joystick control
-    %Get the joystick readings
-    joy=jst;   
-    THROTTLE = joy(1);
-    YAW = joy(2);
-    PITCH = joy(3);
-    ROLL = joy(4)-0.5;
-
-    ROLL = 1400 + 100*ROLL;
-    PITCH = 1500 + 500*PITCH;
-    YAW = 1500 + 500*YAW;
-    THROTTLE = 1500 + 500*THROTTLE;
-
-    %Display joystick
-    set(handles.left_joy_plot,'XData',YAW,'YData',THROTTLE);
-    set(handles.right_joy_plot,'XData',ROLL,'YData',PITCH);
+     
+    %Servo motion
+    Range_limit = 0.3; %Limit motion amplitude (1.0 max)
+    ROLL = 1500 + Range_limit*500*joy(2); %servo 1
+    PITCH = 1500 - Range_limit*500*joy(1); %servo 2
+    YAW = 1500 - Range_limit*500*joy(3); %servo 3
+    
+    %Throttle
+    Throttle_limit = 0.3; %More precision for lower throttle (1.0 max)
+    THROTTLE = 1000 + Throttle_limit*2000*(max(0,joy(4)-0.5)); %engines
+    
+    %Rail motion
+    Speed_limit = 0.8; %Function of max speed (1.0).
+    AUX1 = 1500;
+    if(joy(5)==1)
+        AUX1 = AUX1-Speed_limit*500;
+    end
+    if(joy(5)==8)
+        AUX1 = AUX1+Speed_limit*500;
+    end
+    
+    AUX2 = 1000;
+    AUX3 = 1000;
+    AUX4 = 1000;
+    
     VALID_RC = 1;
+    OTHER_COMMANDS = [OTHER_COMMANDS 105]; %Display the RC commands
   case 2 %Trust test script
     if(CYCLE)
         STATE.skipcurrent = get(handles.chkSkip,'Value');
@@ -325,27 +343,6 @@ for(i=1:size_data)
     content{i}=P_LIST{i}.NAME;
 end
 set(handles.list_plot,'String',content);
-
-%Make the joystick plots
-handles.left_joy_plot = plot(handles.axes_joy_left,0,0,'ro','MarkerFaceColor','r');
-xlabel(handles.axes_joy_left,'Yaw');
-ylabel(handles.axes_joy_left,'Throttle');
-xlim(handles.axes_joy_left,'manual');
-xlim(handles.axes_joy_left,[-1 1]);
-ylim(handles.axes_joy_left,'manual');
-ylim(handles.axes_joy_left,[-1 1]);
-set(handles.axes_joy_left,'YTickLabel',[]);
-set(handles.axes_joy_left,'XTickLabel',[]);
-
-handles.right_joy_plot = plot(handles.axes_joy_right,0,0,'ro','MarkerFaceColor','r');
-xlabel(handles.axes_joy_right,'Roll');
-ylabel(handles.axes_joy_right,'Pitch');
-xlim(handles.axes_joy_right,'manual');
-xlim(handles.axes_joy_right,[-1 1]);
-ylim(handles.axes_joy_right,'manual');
-ylim(handles.axes_joy_right,[-1 1]);
-set(handles.axes_joy_right,'YTickLabel',[]);
-set(handles.axes_joy_right,'XTickLabel',[]);
 
 %Find all com ports
 coms = getAvailableComPort();
