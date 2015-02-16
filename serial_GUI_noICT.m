@@ -120,7 +120,7 @@ switch CHECK_STATUS
     THROTTLE = 1000 + Throttle_limit*2000*(max(0,joy(4)-0.5)); %engines
     
     %Rail motion
-    Speed_limit = 0.8; %Function of max speed (1.0).
+    Speed_limit = 0.3; %Function of max speed (1.0).
     AUX1 = 1500;
     if(joy(5)==1)
         AUX1 = AUX1-Speed_limit*500;
