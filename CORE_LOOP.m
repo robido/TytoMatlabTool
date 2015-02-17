@@ -1,4 +1,4 @@
-function [STATE CYCLE] = CORE_LOOP( serialport, STATE, LIST_OF_COMMANDS, DELAY_COMP )
+function [STATE CYCLE] = CORE_LOOP( isRealTerm, serialPort, STATE, LIST_OF_COMMANDS)
 %Update the state using serial comm and protocol functions
 
 persistent time_last commandQueue
@@ -13,7 +13,11 @@ CYCLE = 0;
 next_byte = -1;
 ACK = 0;
 while(~isempty(next_byte) && ACK==0)
-    next_byte = serial_get_byte(serialport);
+    if isRealTerm
+        next_byte = rt_serial_get_byte(serialPort.File);
+    else
+        next_byte = serial_get_byte(serialPort);
+    end
     if(~isempty(next_byte))
         [ACK, STATE] = protocol_process(next_byte, STATE);
     end
@@ -46,7 +50,11 @@ if(ACK~=0 || timout)
     %Send next command
     commandID = commandQueue(1);
     bytes_to_send = [bytes_to_send protocol_get_command(commandID,STATE)];
-    serial_send_bytes(serialport,bytes_to_send);
+    if isRealTerm
+        rt_serial_send_bytes(serialPort.hRealterm,bytes_to_send);
+    else
+        serial_send_bytes(serialPort,bytes_to_send);
+    end
     time_last = now;
 end
 

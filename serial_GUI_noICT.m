@@ -22,7 +22,7 @@ function varargout = serial_GUI_noICT(varargin)
 
 % Edit the above text to modify the response to help serial_GUI_noICT
 
-% Last Modified by GUIDE v2.5 18-Dec-2014 10:54:27
+% Last Modified by GUIDE v2.5 17-Feb-2015 10:04:01
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -229,10 +229,16 @@ if(size_psel>3)
     set(handles.list_plot,'Value',Plot_Selections);
 end
 List_of_commands = protocol_find_simple_list(M_Selections,Plot_Selections,[OTHER_COMMANDS STATE.OUTCOMMANDS]);
-Delay_comp = round(str2double(get(handles.txt_delay_comp,'String')));
 
 %Update the state using serial comm and protocol functions
-[STATE, CYCLE] = CORE_LOOP(handles.serialport ,STATE,List_of_commands,Delay_comp);
+isRealTerm = get(handles.chkBluetooth,'Value');
+if(isRealTerm)
+    serialPort.File = handles.captureFileID;
+    serialPort.hRealterm = handles.hrealterm;
+else
+    serialPort = handles.serialport;
+end
+[STATE, CYCLE] = CORE_LOOP(isRealTerm, serialPort ,STATE,List_of_commands);
   
 
 % **************************************
@@ -357,6 +363,7 @@ if(isempty(idx) || idx>numel(coms))
 end
 set(handles.txt_COM,'Value',idx);
 set(handles.baudRateText,'String',GUI_DATA.baud);
+set(handles.txtRTcom,'String',GUI_DATA.rtCOM);
 catch
 end
 
@@ -447,28 +454,48 @@ end
 % --- Executes on button press in connectButton.
 function connectButton_Callback(hObject, eventdata, handles)    
 if strcmp(get(hObject,'String'),'Connect') % currently disconnected
-    COM = get(handles.txt_COM,'String');
-    COM = COM(get(handles.txt_COM,'Value'));
+    isRealTerm = get(handles.chkBluetooth,'Value');
     
-    %Activate the serial connection
-    serialport = serial_setup_open(COM, str2num(get(handles.baudRateText, 'String')));
-    status = get(serialport,'Status');
-    if(strcmp(status,'open'))
+    success = 0;
+    if isRealTerm
+        COM = get(handles.txtRTcom,'String');
+        [hrealterm, captureFileID] = rt_serial_setup_open(COM, str2num(get(handles.baudRateText, 'String')));
+        if(hrealterm.PortOpen && captureFileID>0)
+            success = 1;
+        end
+        handles.captureFileID = captureFileID;
+        handles.hrealterm = hrealterm;
+    else
+        COM = get(handles.txt_COM,'String');
+        COM = COM(get(handles.txt_COM,'Value'));
+        serialport = serial_setup_open(COM, str2num(get(handles.baudRateText, 'String')));
+        status = get(serialport,'Status');
+        success = strcmp(status,'open');
         handles.serialport = serialport;
+    end    
+    
+    if success
         guidata(hObject, handles);
         start(handles.GUItimer);
         set(hObject, 'String','Disconnect')
         set(handles.txt_COM,'Enable','off');
         set(handles.baudRateText,'Enable','off');
-        set(handles.txt_delay_comp,'Enable','off');
+        set(handles.chkBluetooth,'Enable','off');
+        set(handles.txtRTcom,'Enable','off');
     end
 else  
     set(hObject, 'String','Connect')
     stop(handles.GUItimer);
-    serial_close(handles.serialport);
+    isRealTerm = get(handles.chkBluetooth,'Value');
+    if isRealTerm
+        rt_serial_close(handles.hrealterm,handles.captureFileID);
+    else
+        serial_close(handles.serialport);
+    end
     set(handles.txt_COM,'Enable','on');
     set(handles.baudRateText,'Enable','on');
-    set(handles.txt_delay_comp,'Enable','on');
+    set(handles.chkBluetooth,'Enable','on');
+    set(handles.txtRTcom,'Enable','on');
 end
 guidata(hObject, handles);
 
@@ -495,7 +522,9 @@ else
     %Save essential GUI data
     COM = get(handles.txt_COM,'String');
     COM = COM(get(handles.txt_COM,'Value'));
+    rtCOM = get(handles.txtRTcom,'String');
     GUI_DATA.com = COM;
+    GUI_DATA.rtCOM = rtCOM;
     GUI_DATA.baud = get(handles.baudRateText,'String');
     save('GUI_DATA','GUI_DATA');
     
@@ -552,29 +581,6 @@ function list_M_data_CreateFcn(hObject, eventdata, handles)
 % handles    empty - handles not created until after all CreateFcns called
 
 % Hint: listbox controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-
-function txt_delay_comp_Callback(hObject, eventdata, handles)
-% hObject    handle to txt_delay_comp (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of txt_delay_comp as text
-%        str2double(get(hObject,'String')) returns contents of txt_delay_comp as a double
-
-
-% --- Executes during object creation, after setting all properties.
-function txt_delay_comp_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to txt_delay_comp (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
 %       See ISPC and COMPUTER.
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
@@ -834,3 +840,42 @@ function chkSkip_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of chkSkip
+
+
+% --- Executes on button press in chkBluetooth.
+function chkBluetooth_Callback(hObject, eventdata, handles)
+% hObject    handle to chkBluetooth (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of chkBluetooth
+if(get(hObject,'Value'))
+    set(handles.txt_COM,'Visible','off');
+    set(handles.txtRTcom,'Visible','on');
+else
+    set(handles.txt_COM,'Visible','on');
+    set(handles.txtRTcom,'Visible','off');
+end
+
+
+
+function txtRTcom_Callback(hObject, eventdata, handles)
+% hObject    handle to txtRTcom (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of txtRTcom as text
+%        str2double(get(hObject,'String')) returns contents of txtRTcom as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function txtRTcom_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to txtRTcom (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
